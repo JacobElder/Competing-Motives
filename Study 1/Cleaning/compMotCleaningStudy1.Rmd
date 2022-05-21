@@ -1,0 +1,1119 @@
+---
+title: "feedback_merge+clean"
+output: html_document
+---
+
+```{r}
+source("/Volumes/GoogleDrive/My Drive/Volumes/Research Project/Competing Motives/Data Analysis/RL_Models/BehGen/SimCM_RB.R")
+```
+
+```{r}
+library(compiler)
+library(readbulk) 
+library(psych)
+library(forcats)
+library(igraph)
+library(MASS)
+library(lme4)
+library(cluster)
+library(Kendall)
+library(readr)
+library(psych)
+library(igraph)
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library(reshape2)
+library(tidyr)
+library(gtools)
+library(sjstats)
+library(brms)
+library(optimx)
+library(igraph)
+library(loo)
+cOptimx <- cmpfun(optimx)
+
+library(parallel)
+library(doParallel)
+library("rstan") # observe startup messages
+library("tidyverse")
+```
+
+```{r}
+setwd("~/Google Drive/Volumes/Research Project/Competing Motives/Data Analysis/")
+normRating <- read.csv("./normRating.csv")
+allCents <- read.csv("./allCombCents.csv")
+allCents$Idx <- 1:296
+posCents <- allCents[1:148,]
+negCents <- allCents[149:296, ]
+```
+
+
+```{r}
+#setwd("/Volumes/Research Project/Social Evaluative Feedback fMRI/Data/Behavioral/")
+#setwd("/Volumes/Research Project/Competing Motives/Data Storage/LearningPhase/")
+setwd("~/Google Drive/Volumes/Research Project/Competing Motives/Data Storage/LearningPhase/")
+mergedRaw <- read_bulk(directory = getwd(), extension = ".csv", fun = read.csv)
+mergedRaw <- mergedRaw[order(mergedRaw$subID),]
+mergedRaw[mergedRaw == -99] <- NA
+filteredRaw <- mergedRaw[c(1,6:7,9:24)]
+```
+
+```{r}
+setwd("~/Google Drive/Volumes/")
+posDf <- read.csv("./Research Project/Trait Network_Behaviral/generating network/output/adjacencyMatrix_p.csv")
+posMat <- as.matrix(posDf)
+posGraph <- graph.adjacency(posMat)
+negDf <- read.csv("./Research Project/Trait Network_Behaviral/generating network/output/adjacencyMatrix_n.csv")
+negMat <- as.matrix(negDf)
+negGraph <- graph.adjacency(negMat)
+```
+
+`remove participants that did not believe study
+```{r}
+filteredRaw$leftCue <- NA
+filteredRaw$rightCue <- NA
+filteredRaw$choiceCue <- NA
+for (i in 1:nrow(filteredRaw)) {
+  # for left
+if (filteredRaw$leftPropT[i] == 1 & filteredRaw$leftValence[i] == 1){
+    filteredRaw$leftCue[i] <- 1
+}
+if (filteredRaw$leftPropT[i] == 2 & filteredRaw$leftValence[i] == 1){
+    filteredRaw$leftCue[i] <- 2
+}
+if (filteredRaw$leftPropT[i] == 3 & filteredRaw$leftValence[i] == 1){
+    filteredRaw$leftCue[i] <- 3
+}
+if (filteredRaw$leftPropT[i] == 1 & filteredRaw$leftValence[i] == 2){
+    filteredRaw$leftCue[i] <- 4
+}
+if (filteredRaw$leftPropT[i] == 2 & filteredRaw$leftValence[i] == 2){
+    filteredRaw$leftCue[i] <- 5
+}
+if (filteredRaw$leftPropT[i] == 3 & filteredRaw$leftValence[i] == 2){
+    filteredRaw$leftCue[i] <- 6
+}
+  
+  # for right
+if (filteredRaw$rightPropT[i] == 1 & filteredRaw$rightValence[i] == 1){
+    filteredRaw$rightCue[i] <- 1
+}
+if (filteredRaw$rightPropT[i] == 2 & filteredRaw$rightValence[i] == 1){
+    filteredRaw$rightCue[i] <- 2
+}
+if (filteredRaw$rightPropT[i] == 3 & filteredRaw$rightValence[i] == 1){
+    filteredRaw$rightCue[i] <- 3
+}
+if (filteredRaw$rightPropT[i] == 1 & filteredRaw$rightValence[i] == 2){
+    filteredRaw$rightCue[i] <- 4
+}
+if (filteredRaw$rightPropT[i] == 2 & filteredRaw$rightValence[i] == 2){
+    filteredRaw$rightCue[i] <- 5
+}
+if (filteredRaw$rightPropT[i] == 3 & filteredRaw$rightValence[i] == 2){
+    filteredRaw$rightCue[i] <- 6
+}
+
+  
+  # for choice
+if (filteredRaw$propTChoice[i] == 1 & filteredRaw$valChoice[i] == 1){
+    filteredRaw$choiceCue[i] <- 1
+}
+if (filteredRaw$propTChoice[i] == 2 & filteredRaw$valChoice[i] == 1){
+    filteredRaw$choiceCue[i] <- 2
+}
+if (filteredRaw$propTChoice[i] == 3 & filteredRaw$valChoice[i] == 1){
+    filteredRaw$choiceCue[i] <- 3
+}
+if (filteredRaw$propTChoice[i] == 1 & filteredRaw$valChoice[i] == 2){
+    filteredRaw$choiceCue[i] <- 4
+}
+if (filteredRaw$propTChoice[i] == 2 & filteredRaw$valChoice[i] == 2){
+    filteredRaw$choiceCue[i] <- 5
+}
+if (filteredRaw$propTChoice[i] == 3 & filteredRaw$valChoice[i] == 2){
+    filteredRaw$choiceCue[i] <- 6
+}
+
+}
+```
+
+```{r}
+filteredRaw$pairCong <- NA
+for(i in 1:nrow(filteredRaw)){
+  if (filteredRaw$leftValence[i] == 1 & filteredRaw$rightValence[i] == 1){
+    filteredRaw$pairCong[i] <- 1
+  } else if (filteredRaw$leftValence[i] == 2 & filteredRaw$rightValence[i] == 2) {
+  filteredRaw$pairCong[i] <- 3
+  } else {
+  filteredRaw$pairCong[i] <- 2
+}
+}
+```
+
+```{r}
+filteredRaw <- merge(filteredRaw, normRating, by.x = "traitLeft", by.y = "word")
+names(filteredRaw)[names(filteredRaw)=="desirability"] <- "desirLeft"
+names(filteredRaw)[names(filteredRaw)=="category"] <- "catLeft"
+names(filteredRaw)[names(filteredRaw)=="interpersonal"] <- "interLeft"
+names(filteredRaw)[names(filteredRaw)=="observability"] <- "obsLeft"
+names(filteredRaw)[names(filteredRaw)=="prevalence"] <- "prevLeft"
+names(filteredRaw)[names(filteredRaw)=="stereo"] <- "sterLeft"
+filteredRaw <- merge(filteredRaw, normRating, by.x = "traitRight", by.y = "word")
+names(filteredRaw)[names(filteredRaw)=="desirability"] <- "desirRight"
+names(filteredRaw)[names(filteredRaw)=="category"] <- "catRight"
+names(filteredRaw)[names(filteredRaw)=="interpersonal"] <- "interRight"
+names(filteredRaw)[names(filteredRaw)=="observability"] <- "obsRight"
+names(filteredRaw)[names(filteredRaw)=="prevalence"] <- "prevRight"
+names(filteredRaw)[names(filteredRaw)=="stereo"] <- "sterRight"
+filteredRaw <- merge(filteredRaw, allCents[c("trait","outDegree","inDegree","eigen.vector","between","close", "Idx")], by.x = "traitRight", by.y = "trait")
+names(filteredRaw)[names(filteredRaw)=="outDegree"] <- "outRight"
+names(filteredRaw)[names(filteredRaw)=="inDegree"] <- "inRight"
+names(filteredRaw)[names(filteredRaw)=="eigen.vector"] <- "eigRight"
+names(filteredRaw)[names(filteredRaw)=="between"] <- "betRight"
+names(filteredRaw)[names(filteredRaw)=="close"] <- "closeRight"
+names(filteredRaw)[names(filteredRaw)=="Idx"] <- "IdxRight"
+filteredRaw <- merge(filteredRaw, allCents[c("trait","outDegree","inDegree","eigen.vector","between","close", "Idx")], by.x = "traitLeft", by.y = "trait")
+names(filteredRaw)[names(filteredRaw)=="outDegree"] <- "outLeft"
+names(filteredRaw)[names(filteredRaw)=="inDegree"] <- "inLeft"
+names(filteredRaw)[names(filteredRaw)=="eigen.vector"] <- "eigLeft"
+names(filteredRaw)[names(filteredRaw)=="between"] <- "betLeft"
+names(filteredRaw)[names(filteredRaw)=="close"] <- "closeLeft"
+names(filteredRaw)[names(filteredRaw)=="Idx"] <- "IdxLeft"
+```
+
+```{r}
+filteredRaw$ZsterRight <- scale(filteredRaw$sterRight)
+filteredRaw$ZsterLeft <- scale(filteredRaw$sterLeft)
+filteredRaw$ZdesirRight <- scale(filteredRaw$desirRight)
+filteredRaw$ZdesirLeft <- scale(filteredRaw$desirLeft)
+filteredRaw$ZinterRight <- scale(filteredRaw$interRight)
+filteredRaw$ZinterLeft <- scale(filteredRaw$interLeft)
+filteredRaw$ZobsRight <- scale(filteredRaw$obsRight)
+filteredRaw$ZobsLeft <- scale(filteredRaw$obsLeft)
+filteredRaw$ZprevRight <- scale(filteredRaw$prevRight)
+filteredRaw$ZprevLeft <- scale(filteredRaw$prevLeft)
+filteredRaw$ZcatRight <- scale(filteredRaw$catRight)
+filteredRaw$ZcatLeft <- scale(filteredRaw$catLeft)
+filteredRaw$ZoutLeft <- scale(filteredRaw$outLeft)
+filteredRaw$ZinLeft <- scale(filteredRaw$inLeft)
+filteredRaw$ZeigLeft <- scale(filteredRaw$eigLeft)
+filteredRaw$ZcloseLeft <- scale(filteredRaw$closeLeft)
+filteredRaw$ZbetLeft <- scale(filteredRaw$betLeft)
+filteredRaw$ZoutRight <- scale(filteredRaw$outRight)
+filteredRaw$ZinRight <- scale(filteredRaw$inRight)
+filteredRaw$ZeigRight <- scale(filteredRaw$eigRight)
+filteredRaw$ZcloseRight <- scale(filteredRaw$closeRight)
+filteredRaw$ZbetRight <- scale(filteredRaw$betRight)
+```
+
+```{r}
+filteredRaw$greatDes <- NA
+for(i in 1:nrow(filteredRaw)){
+  if (filteredRaw$desirLeft[i] > filteredRaw$desirRight[i]){
+    filteredRaw$greatDes[i] <- 1
+  } else if (filteredRaw$desirRight[i] > filteredRaw$desirLeft[i]) {
+  filteredRaw$greatDes[i] <- 2
+  } else {
+  filteredRaw$greatDes[i] <- 3
+}
+}
+
+filteredRaw$chooseDes <- NA
+filteredRaw$desDiff <- NA
+for(i in 1:nrow(filteredRaw)){
+  if (filteredRaw$choice[i] == filteredRaw$greatDes[i]){
+    filteredRaw$chooseDes[i] <- 1
+  } else {
+  filteredRaw$chooseDes[i] <- 0
+  }
+  if(filteredRaw$choice[i]==1){
+    filteredRaw$desDiff[i] <- filteredRaw$desirLeft[i] - filteredRaw$desirRight[i]
+  } else if (filteredRaw$choice[i]==2){
+    filteredRaw$desDiff[i] <- filteredRaw$desirRight[i] - filteredRaw$desirLeft[i]
+  }
+}
+
+filteredRaw$chooseGroup <- NA
+for(i in 1:nrow(filteredRaw)){
+  if (filteredRaw$propTChoice[i] >= filteredRaw$leftPropT[i] & filteredRaw$propTChoice[i] >= filteredRaw$rightPropT[i]){
+    filteredRaw$chooseGroup[i] <- 1
+  } else {
+  filteredRaw$chooseGroup[i] <- 0
+}
+}
+
+filteredRaw$greatSter <- NA
+for(i in 1:nrow(filteredRaw)){
+  if (filteredRaw$sterLeft[i] > filteredRaw$sterRight[i]){
+    filteredRaw$greatSter[i] <- 1
+  } else if (filteredRaw$sterRight[i] > filteredRaw$sterLeft[i]) {
+  filteredRaw$greatSter[i] <- 2
+  } else {
+  filteredRaw$greatSter[i] <- 3
+}
+}
+
+filteredRaw$chooseSter <- NA
+filteredRaw$sterDiff <- NA
+for(i in 1:nrow(filteredRaw)){
+  if (filteredRaw$choice[i] == filteredRaw$greatSter[i]){
+    filteredRaw$chooseSter[i] <- 1
+  } else {
+  filteredRaw$chooseSter[i] <- 0
+  }
+  if(filteredRaw$choice[i]==1){
+    filteredRaw$sterDiff[i] <- filteredRaw$sterLeft[i] - filteredRaw$sterRight[i]
+  } else if (filteredRaw$choice[i]==2){
+    filteredRaw$sterDiff[i] <- filteredRaw$sterRight[i] - filteredRaw$sterLeft[i]
+  }
+}
+
+filteredRaw$greatOut <- NA
+for(i in 1:nrow(filteredRaw)){
+  if (filteredRaw$outLeft[i] > filteredRaw$outRight[i]){
+    filteredRaw$greatOut[i] <- 1
+  } else if (filteredRaw$outRight[i] > filteredRaw$outLeft[i]) {
+  filteredRaw$greatOut[i] <- 2
+  } else {
+  filteredRaw$greatOut[i] <- 3
+}
+}
+
+filteredRaw$chooseOut <- NA
+filteredRaw$outDiff <- NA
+for(i in 1:nrow(filteredRaw)){
+  if (filteredRaw$choice[i] == filteredRaw$greatOut[i]){
+    filteredRaw$chooseOut[i] <- 1
+  } else {
+  filteredRaw$chooseOut[i] <- 0
+  }
+  if(filteredRaw$choice[i]==1){
+    filteredRaw$outDiff[i] <- filteredRaw$outLeft[i] - filteredRaw$outRight[i]
+  } else if (filteredRaw$choice[i]==2){
+    filteredRaw$outDiff[i] <- filteredRaw$outRight[i] - filteredRaw$outLeft[i]
+  }
+}
+
+
+filteredRaw$greatIn <- NA
+for(i in 1:nrow(filteredRaw)){
+  if (filteredRaw$inLeft[i] > filteredRaw$inRight[i]){
+    filteredRaw$greatIn[i] <- 1
+  } else if (filteredRaw$inRight[i] > filteredRaw$inLeft[i]) {
+  filteredRaw$greatIn[i] <- 2
+  } else {
+  filteredRaw$greatIn[i] <- 3
+}
+}
+
+filteredRaw$chooseIn <- NA
+filteredRaw$inDiff <- NA
+for(i in 1:nrow(filteredRaw)){
+  if (filteredRaw$choice[i] == filteredRaw$greatIn[i]){
+    filteredRaw$chooseIn[i] <- 1
+  } else {
+  filteredRaw$chooseIn[i] <- 0
+  }
+  if(filteredRaw$choice[i]==1){
+    filteredRaw$inDiff[i] <- filteredRaw$inLeft[i] - filteredRaw$inRight[i]
+  } else if (filteredRaw$choice[i]==2){
+    filteredRaw$inDiff[i] <- filteredRaw$inRight[i] - filteredRaw$inLeft[i]
+  }
+}
+
+
+filteredRaw$greatEig <- NA
+for(i in 1:nrow(filteredRaw)){
+  if (filteredRaw$eigLeft[i] > filteredRaw$eigRight[i]){
+    filteredRaw$greatEig[i] <- 1
+  } else if (filteredRaw$eigRight[i] > filteredRaw$eigLeft[i]) {
+  filteredRaw$greatEig[i] <- 2
+  } else {
+  filteredRaw$greatEig[i] <- 3
+}
+}
+
+filteredRaw$chooseEig <- NA
+filteredRaw$eigDiff <- NA
+for(i in 1:nrow(filteredRaw)){
+  if (filteredRaw$choice[i] == filteredRaw$greatEig[i]){
+    filteredRaw$chooseEig[i] <- 1
+  } else {
+  filteredRaw$chooseEig[i] <- 0
+  }
+  if(filteredRaw$choice[i]==1){
+    filteredRaw$eigDiff[i] <- filteredRaw$eigLeft[i] - filteredRaw$eigRight[i]
+  } else if (filteredRaw$choice[i]==2){
+    filteredRaw$eigDiff[i] <- filteredRaw$eigRight[i] - filteredRaw$eigLeft[i]
+  }
+}
+
+logsumexp <- function (x) {
+    y <- max(x)
+    y + log(sum(exp(x - y)))
+}
+softmax <- function (x) {
+    exp(x - logsumexp(x))
+}
+
+  
+
+# filteredRaw$desAP <- NA
+# for(i in 1:nrow(filteredRaw)){
+# softDes <-  softmax(c(filteredRaw$ZdesirLeft[i], filteredRaw$ZdesirRight[i]))
+# curChoice <- filteredRaw$choice[i]
+# AP <- softDes[curChoice]
+# filteredRaw$desAP[i] <- AP
+# }
+# filteredRaw$sterAP <- NA
+# for(i in 1:nrow(filteredRaw)){
+# softSter <-  softmax(c(filteredRaw$ZsterLeft[i], filteredRaw$ZsterRight[i]))
+# curChoice <- filteredRaw$choice[i]
+# AP <- softSter[curChoice]
+# filteredRaw$sterAP[i] <- AP
+# }
+# filteredRaw$prevAP <- NA
+# for(i in 1:nrow(filteredRaw)){
+# softPrev <-  softmax(c(filteredRaw$ZprevLeft[i], filteredRaw$ZprevRight[i]))
+# curChoice <- filteredRaw$choice[i]
+# AP <- softPrev[curChoice]
+# filteredRaw$prevAP[i] <- AP
+# }
+# filteredRaw$obsAP <- NA
+# for(i in 1:nrow(filteredRaw)){
+# softObs <-  softmax(c(filteredRaw$ZobsLeft[i], filteredRaw$ZobsRight[i]))
+# curChoice <- filteredRaw$choice[i]
+# AP <- softObs[curChoice]
+# filteredRaw$obsAP[i] <- AP
+# }
+```
+
+```{r}
+Idxmat<-cbind(filteredRaw$IdxLeft, filteredRaw$IdxRight)
+filteredRaw$IdxChoose <- Idxmat[cbind(seq_along(filteredRaw$choice), filteredRaw$choice)]
+
+desMat <- cbind(filteredRaw$ZdesirLeft, filteredRaw$ZdesirRight)
+desAP <- t(apply(desMat, 1, softmax))
+colnames(desAP) <- c("leftDesAP", "rightDesAP")
+filteredRaw <- cbind(filteredRaw, desAP)
+filteredRaw$desAP <- desAP[cbind(seq_along(filteredRaw$choice), filteredRaw$choice)]
+
+sterMat <- cbind(filteredRaw$ZsterLeft, filteredRaw$ZsterRight)
+sterAP <- t(apply(sterMat, 1, softmax))
+colnames(sterAP) <- c("leftsterAP", "rightsterAP")
+filteredRaw <- cbind(filteredRaw, sterAP)
+filteredRaw$sterAP <- sterAP[cbind(seq_along(filteredRaw$choice), filteredRaw$choice)]
+
+prevMat <- cbind(filteredRaw$ZprevLeft, filteredRaw$ZprevRight)
+prevAP <- t(apply(prevMat, 1, softmax))
+colnames(prevAP) <- c("leftprevAP", "rightprevAP")
+filteredRaw <- cbind(filteredRaw, prevAP)
+filteredRaw$prevAP <- prevAP[cbind(seq_along(filteredRaw$choice), filteredRaw$choice)]
+
+obsMat <- cbind(filteredRaw$ZobsLeft, filteredRaw$ZobsRight)
+obsAP <- t(apply(obsMat, 1, softmax))
+colnames(obsAP) <- c("leftobsAP", "rightobsAP")
+filteredRaw <- cbind(filteredRaw, obsAP)
+filteredRaw$obsAP <- obsAP[cbind(seq_along(filteredRaw$choice), filteredRaw$choice)]
+```
+
+```{r}
+filteredRaw$similarity <- NA
+filteredRaw$traitRight <- as.character(filteredRaw$traitRight)
+filteredRaw$traitLeft <- as.character(filteredRaw$traitLeft)
+
+for(i in 1:nrow(filteredRaw)){
+
+  if(filteredRaw$IdxLeft[i]>148 & filteredRaw$IdxRight[i]>148){
+    g <- negGraph
+    L <- filteredRaw$IdxLeft[i] - 148
+    R <- filteredRaw$IdxRight[i] - 148
+    
+    curSim <- similarity.dice(g)[L,R]
+  filteredRaw$similarity[i] <- curSim
+  }else if(filteredRaw$IdxRight[i] < 149 & filteredRaw$IdxLeft[i] < 149){
+    g <- posGraph
+    L <- filteredRaw$IdxLeft[i]
+    R <- filteredRaw$IdxRight[i]
+    
+  curSim <- similarity.dice(g)[L,R]
+  filteredRaw$similarity[i] <- curSim
+  }else{
+    curSim <- NA
+  }
+  
+}
+```
+
+
+```{r}
+fullDf <- filteredRaw
+fullDf <- fullDf[fullDf$subID!=22, ]
+
+fullDf[fullDf$traitLeft==fullDf$traitRight,] <- NA
+
+fullDf <- fullDf[complete.cases(fullDf$trialTotal), ]
+fullDf <- fullDf[order(fullDf$subID, fullDf$trialTotal),]
+```
+
+```{r}
+setwd("~/Google Drive/Volumes/Research Project/Competing Motives/Data Analysis/")
+
+write.csv(fullDf, "cleanDf.csv", row.names = F)
+```
+
+
+```{r}
+fulldf <- fullDf
+fulldf$result <- fulldf$choiceProp/100
+fulldf$cong <- ifelse(fulldf$pairCong==2, 1, 2)
+```
+
+```{r message=FALSE, warning=FALSE}
+Idxmat<-cbind(fulldf$IdxLeft, fulldf$IdxRight)
+fulldf$IdxChoose <- Idxmat[cbind(seq_along(fulldf$choice), fulldf$choice)]
+
+uIds<-unique(fulldf$subID)
+
+fulldf$SV_L <- NA
+fulldf$SV_R <- NA
+fulldf$SV2_L <- NA
+fulldf$SV2_R <- NA
+fulldf$simL <- NA
+fulldf$simR <- NA
+LIDX <- grep("IdxLeft", colnames(fulldf))
+RIDX <- grep("IdxRight", colnames(fulldf))
+LVid <- grep("SV_L", colnames(fulldf))
+RVid <- grep("SV_R", colnames(fulldf))
+LVid2 <- grep("SV2_L", colnames(fulldf))
+RVid2 <- grep("SV2_R", colnames(fulldf))
+Lsid <- grep("simL", colnames(fulldf))
+Rsid <- grep("simR", colnames(fulldf))
+for(k in 1:2){
+  
+  if(k==1){
+    Vid = LVid
+    Vid2 = LVid2
+    Sid <- Lsid
+    SideId <- LIDX
+  }else if(k==2){
+    Vid = RVid
+    Vid2 = RVid2
+    Sid <- Rsid
+    SideId <- RIDX
+  }
+  
+  for(i in uIds){
+    
+    subDf <- subset(fulldf, subID==i)
+    for(n in 1:nrow(subDf)){
+      
+      V_S <- NA
+      V_S2 <- NA
+      ind <- subDf[n, SideId]
+      prevs <- subDf$IdxChoose[1:(n-1)]
+      
+      
+      indCP <- ind
+      indCN <- ind-148
+      prevsN <- prevs[which(prevs>148)] - 148
+      prevsP <- prevs[which(prevs<149)]
+      if(ind<149 & sum(prevs<149) > 0){
+        curSimP <- similarity.dice(posGraph)[indCP,prevsP]
+        
+        prevFeed <- subDf$result[1:(n-1)]
+        prevFeedP2 <- prevFeed[which(prevs<149)]
+        prevFeedN2 <- prevFeed[which(prevs>148)]
+
+        V_S = sum(curSimP * prevFeedP2) / sum(curSimP)
+        
+        curSimN <- rep(0, length(prevFeedN2))
+      }
+
+      if(ind>148 & sum(prevs>148) > 0 ){
+        curSimN <- similarity.dice(negGraph)[indCN,prevsN]
+
+        
+        prevFeed <- subDf$result[1:(n-1)]
+        prevFeedP2 <- prevFeed[which(prevs<149)]
+        prevFeedN2 <- prevFeed[which(prevs>148)]
+        V_S = sum(curSimN * prevFeedN2) / sum(curSimN)
+        
+        curSimP <- rep(0, length(prevFeedP2))
+      }
+      
+      
+      if( all(prevs>148) & ind < 149){
+        V_S2 = 0
+      }else if( all(prevs<149) == 1 & ind > 148){
+        V_S2 = 0
+      }else if(sum(prevs<149) == 0){
+        V_S2 = sum(sum(curSimN * prevFeedN2)) / sum(c(prevFeedN2)) 
+        curSim = c(curSimN)
+      }else if(sum(prevs>148) == 0){
+        V_S2 = sum(sum(curSimP * prevFeedP2)) / sum(c(prevFeedP2)) 
+        curSim = c(curSimP)
+      }else if(sum(prevs>148) > 0 & sum(prevs<149) > 0){
+        V_S2 = sum(c(sum(curSimP * prevFeedP2), sum(curSimN * prevFeedN2))) / sum(c(prevFeedP2, prevFeedN2)) 
+        curSim = c(curSimP,curSimN)
+      }else{
+        V_S2 = 0
+      }
+      
+      if((n-1)==0){
+        V_S=.50
+        V_S2=0
+      }
+      
+      if(is.na(V_S)){
+        V_S=.50
+      }
+
+      if(is.na(V_S2)){
+        V_S2=0
+      }
+      
+      fulldf[fulldf$subID == i & fulldf$trialTotal==subDf$trialTotal[n], Vid] <- V_S
+      fulldf[fulldf$subID == i & fulldf$trialTotal==subDf$trialTotal[n], Vid2] <- V_S2
+      fulldf[fulldf$subID == i & fulldf$trialTotal==subDf$trialTotal[n], Sid] <- mean(curSim)
+    }
+    
+  }
+  
+}
+
+Simmat<-cbind(fulldf$simL, fulldf$simR)
+fulldf$Simchoose <-Simmat[cbind(seq_along(fulldf$choice), fulldf$choice)]
+fulldf$SimRminL <- fulldf$simR - fulldf$simL
+
+```
+
+```{r}
+params <- read.csv("/Volumes/GoogleDrive/My Drive/Volumes/Research Project/Competing Motives/Data Analysis/Study 1 Parameters/sim2CM_RBparams.csv")
+
+  set.seed(132)
+  uIds <- unique(fulldf$subID) # Extract unique subject IDs from dataset
+  fulldf <- fulldf[order(fulldf$subID, fulldf$trialTotal),] # Sort by trials for trial-by-trial learning
+  fulldf <- fulldf[!is.na(fulldf$choice),]
+  x = c('trial', 'n', 'RPE', 'CSV', 'LSV', 'RSV', 'CVM', 'LVM', 'RVM', 'CValueB', 'LValueB', 'RValueB',  'AP' , 'lAP', 'rAP')
+
+  core<-detectCores()
+  cl <- parallel::makeCluster(core-2, setup_strategy = "sequential")
+  setDefaultCluster(cl=cl)
+  registerDoParallel(cl)
+  clusterExport(cl, list("SimCM_RB"))
+  clusterExport(cl, list("params"))
+  clusterExport(cl, list("x"))
+  clusterExport(cl, list("fulldf"))
+  
+result<-foreach(i=uIds, .combine = rbind.data.frame, .packages = c("compiler", "optimx")) %dopar% {
+  output <- as.data.frame(matrix(ncol = length(x) ))
+  names(output) <- x
+  subDf <- subset(fulldf, subID == i) # Subset participant data
+  # trialN, sideChoice, Left, Right, rew, DL, DR, simL, simR, param
+  mat <- SimCM_RB(subDf$trialTotal, subDf$choice, subDf$result, subDf$desirLeft/7, subDf$desirRight/7, subDf$SV2_L, subDf$SV2_R, 
+                     c( 
+                       # mean(params$Temp[params$subID!=i]),
+                       # mean(params$mix[params$subID!=i]),
+                       # mean(params$rb[params$subID!=i])
+                       params$Temp[params$subID==i],
+                       params$mix[params$subID==i],
+                       params$rb[params$subID==i]
+                       
+                       ) )
+  output <- cbind(mat, data.frame(subID = i) )
+  output
+    
+}
+stopCluster(cl)  
+LOO_Df <- result
+
+LOO_Df <- LOO_Df %>% dplyr::rename(trialTotal = trial,
+                  RLcount = n,
+                  predError = RPE)
+```
+
+```{r}
+fullTD <- merge(fulldf, LOO_Df, by = c("subID", "trialTotal"))
+fullTD <- fullTD[order(fullTD$subID, fullTD$trialTotal),]
+fullTD <- fullTD[!duplicated(fullTD[c("subID","trialTotal")]), ]
+fullTD$chooseDes <- as.factor(fullTD$chooseDes)
+```
+
+```{r}
+fullTD$greatSV <- NA
+fullTD$greatSV <- ifelse(fullTD$LSV > fullTD$RSV, 1, ifelse(fullTD$RSV > fullTD$LSV, 2, 3))
+fullTD$compMotC <- NA
+fullTD$compMotC <- ifelse(fullTD$greatSV == fullTD$greatDes, 1, ifelse(fullTD$greatSV != fullTD$greatDes, 2, 3))
+
+Idxmat<-cbind(fulldf$IdxLeft, fulldf$IdxRight)
+fulldf$IdxChoose <- Idxmat[cbind(seq_along(fulldf$choice), fulldf$choice)]
+
+SVmat <- cbind(fullTD$LSV, fullTD$RSV)
+svAP <- t(apply(SVmat, 1, softmax))
+colnames(svAP) <- c("LSV.AP", "RSV.AP")
+fullTD <- cbind(fullTD, svAP)
+fullTD$SV.AP <- svAP[cbind(seq_along(fullTD$choice), fullTD$choice)]
+
+entropy <- function(probs){
+  output <- ( -sum(probs * log(probs)) )
+  return(output)
+}
+
+
+# function for how much conflict in motivation
+relEntropy <- function(mat){
+  LD<-mat[1]
+  RD<-mat[2]
+  LV<-mat[3]
+  RV<-mat[4]
+  maxEnt <- entropy(c(.5,.5))
+  output <- (entropy(c(LD,RD)) / maxEnt)/ (entropy(c(LV,RV)) / maxEnt)
+  return(output)
+}
+
+fullTD$relEnt <- NA
+relEntMat <- cbind(fullTD$leftDesAP, fullTD$rightDesAP, fullTD$LSV.AP, fullTD$RSV.AP)
+fullTD$relEnt <- apply(relEntMat, 1, relEntropy )
+```
+
+# Running Average
+
+```{r}
+fullTD$choice <- as.numeric(fullTD$choice)
+fullTD <- fullTD[order(fullTD$subID, fullTD$trialTotal),]
+fullTD$runAveL <- NA
+fullTD$runAveR <- NA
+fullTD$runAveC <- NA
+fullTD$runSumL <- NA
+fullTD$runSumR <- NA
+fullTD$runSumC <- NA
+fullTD$runSDL <- NA
+fullTD$runSDR <- NA
+fullTD$runSDC <- NA
+fullTD$runChoiceL <- NA
+fullTD$runChoiceR <- NA
+fullTD$runChoiceC <- NA
+fullTD$runPropL <- NA
+fullTD$runPropR <- NA
+fullTD$runPropC <- NA
+
+LIDX <- grep("runAveL", colnames(fullTD))-1
+LIDX2 <- grep("runSumL", colnames(fullTD))-1
+LIDX3 <- grep("runSDL", colnames(fullTD))-1
+LIDX4 <- grep("runChoiceL", colnames(fullTD))-1
+LIDX5 <- grep("runPropL", colnames(fullTD))-1
+output<-matrix(ncol=2,nrow=nrow(fullTD))
+uIds <- unique(fullTD$subID)
+for(u in uIds){
+  subDf <- subset(fullTD, subID==u)
+  cues <- cbind(subDf$leftCue, subDf$rightCue)
+  for(c in 1:2){
+    
+    for(i in 1:nrow(subDf)){
+      
+    #curCue <- subDf$choiceCue[i]
+    #curNotCue <- which(c(subDf$leftCue[i], subDf$rightCue[i])!=curCue) 
+    curCue <- cues[i,c]
+    curTrial <- subDf$trialTotal[i]
+    subDf2 <- subDf[subDf$choiceCue==curCue,]
+    subDf3 <- subDf2[subDf2$trialTotal < curTrial, ]
+    
+    if(nrow(subDf3)!=0){
+      runAve <- mean(subDf3$result[1:nrow(subDf3)], na.rm=T)
+      runSum <- sum(subDf3$result[1:nrow(subDf3)], na.rm=T)
+      runSD <- sd(subDf3$result[1:nrow(subDf3)], na.rm=T)
+      runChoices <- nrow(subDf3)
+      runProps <- nrow(subDf3)/nrow(subDf[subDf$trialTotal < curTrial & (subDf$leftCue == curCue | subDf$rightCue == curCue),])
+      #runChoices <- sum(subDf3$choiceCue==subDf3$choiceCue[nrow(subDf3)])
+    }else{
+      # runAve <- 50
+      runAve <- .50
+      runSum <- 0
+      runSD <- 0
+      runProps <- 0
+      runChos <- 0
+    }
+    
+    fullTD[fullTD$subID == u & fullTD$trialTotal==curTrial, (LIDX+c)] <- runAve
+    fullTD[fullTD$subID == u & fullTD$trialTotal==curTrial, (LIDX2+c)] <- runSum
+    fullTD[fullTD$subID == u & fullTD$trialTotal==curTrial, (LIDX3+c)] <- runSD
+    fullTD[fullTD$subID == u & fullTD$trialTotal==curTrial, (LIDX4+c)] <- runChoices
+    fullTD[fullTD$subID == u & fullTD$trialTotal==curTrial, (LIDX5+c)] <- runProps
+    
+    }
+  }
+}
+
+
+aveMat <- cbind(fullTD$runAveL, fullTD$runAveR)
+fullTD$runAveC <- aveMat[cbind(seq_along(fullTD$choice), fullTD$choice)]
+sumMat <- cbind(fullTD$runSumL, fullTD$runSumR)
+fullTD$runSumC <- sumMat[cbind(seq_along(fullTD$choice), fullTD$choice)]
+sdMat <- cbind(fullTD$runSDL, fullTD$runSDR)
+fullTD$runSDC <- sdMat[cbind(seq_along(fullTD$choice), fullTD$choice)]
+ChoiceMat <- cbind(fullTD$runChoiceL, fullTD$runChoiceR)
+fullTD$runChoiceC <- ChoiceMat[cbind(seq_along(fullTD$choice), fullTD$choice)]
+PropMat <- cbind(fullTD$runPropL, fullTD$runPropR)
+fullTD$runPropC <- PropMat[cbind(seq_along(fullTD$choice), fullTD$choice)]
+
+fullTD$runAveRLDiff <- fullTD$runAveR - fullTD$runAveL
+fullTD$runSumRLDiff <- fullTD$runSumR - fullTD$runSumL
+
+
+aveAP <- t(apply(aveMat, 1, softmax))
+colnames(aveAP) <- c("aveL.AP", "aveR.AP")
+fullTD <- cbind(fullTD, aveAP)
+fullTD$aveC.AP <- aveAP[cbind(seq_along(fullTD$choice), fullTD$choice)]
+for(i in 1:nrow(fullTD)){
+  if(fullTD$greatDes[i]>2){
+    fullTD$aveD.AP[i] <- NA
+  }else{
+    fullTD$aveD.AP[i] <- aveAP[i,fullTD$greatDes[i]]
+  }
+}
+#fullTD$aveD.AP <- aveAP[cbind(seq_along(fullTD$greatDes), fullTD$greatDes)]
+
+# Group Average for Most Desirable
+# fullTD$aveCD.AP <- NA
+# greatDes12 <- fullTD$greatDes
+# greatDes12[fullTD$greatDes==3] <- NA
+# fullTD$aveCD.AP <- aveAP[cbind(seq_along(greatDes12), greatDes12)]
+
+uc <- unique(fullTD$choice)
+unchosen <- function(input){
+  if(input==1){
+    output<-2
+  }else if(input==2){
+    output<-1
+  }else{
+    output<-NA
+  }
+  return(output)
+}
+nochoice <- unlist(lapply(fullTD$choice, function(x) unchosen(x)))
+fullTD$runAveUC <- aveMat[cbind(seq_along(nochoice), nochoice)]
+
+fullTD$runAveCDiff <- fullTD$runAveC - fullTD$runAveUC
+fullTD$outRminL <- fullTD$outRight - fullTD$outLeft
+fullTD$inRminL <- fullTD$inRight - fullTD$inLeft
+fullTD$aveRminL <- fullTD$runAveR - fullTD$runAveL
+fullTD$sumRminL <- fullTD$runSumR - fullTD$runSumL
+fullTD$choiceRminL  <- fullTD$runChoiceR - fullTD$runChoiceL
+fullTD$propRminL  <- fullTD$runPropR - fullTD$runPropL
+
+# choose trait with higher average?
+fullTD$greatAveC <- as.numeric(apply(aveMat, 1, max)==fullTD$runAveC)
+
+fullTD$desRminL <- fullTD$ZdesirRight - fullTD$ZdesirLeft
+fullTD$rightCueYes = fullTD$rightCue >= fullTD$leftCue
+fullTD$rightPropTYes = ifelse(fullTD$rightPropT == fullTD$leftPropT, 1, ifelse(fullTD$rightPropT > fullTD$leftPropT, 2, 3))
+```
+
+# Fixed Values
+
+```{r}
+fullTD$rightPV <- fullTD$rightPropT
+fullTD$leftPV <- fullTD$leftPropT
+fullTD$choosePV <- fullTD$propTChoice
+fullTD$rightPV[fullTD$rightPV==1] <- .32
+fullTD$rightPV[fullTD$rightPV==2] <- .50
+fullTD$rightPV[fullTD$rightPV==3] <- .68
+fullTD$leftPV[fullTD$leftPV==1] <- .32
+fullTD$leftPV[fullTD$leftPV==2] <- .50
+fullTD$leftPV[fullTD$leftPV==3] <- .68
+fullTD$choosePV[fullTD$choosePV==1] <- .32
+fullTD$choosePV[fullTD$choosePV==2] <- .50
+fullTD$choosePV[fullTD$choosePV==3] <- .68
+fullTD$PVRminL <- as.numeric(fullTD$rightPV) - as.numeric(fullTD$leftPV)
+```
+
+```{r}
+fullTD$greatAve <- NA
+fullTD$greatAve <- ifelse(fullTD$runAveL > fullTD$runAveR, 1, ifelse(fullTD$runAveR > fullTD$runAveL, 2, 3))
+fullTD$compMotC2 <- NA
+fullTD$compMotC2 <- ifelse(fullTD$greatAve == fullTD$greatDes, 1, ifelse(fullTD$greatAve != fullTD$greatDes, 2, 3))
+
+fullTD$greatSum <- NA
+fullTD$greatSum <- ifelse(fullTD$runSumL > fullTD$runSumR, 1, ifelse(fullTD$runSumR > fullTD$runSumL, 2, 3))
+fullTD$compMotC3 <- NA
+fullTD$compMotC3 <- ifelse(fullTD$greatSum == fullTD$greatDes, 1, ifelse(fullTD$greatSum != fullTD$greatDes, 2, 3))
+```
+
+```{r}
+psych::phi(table(fullTD$compMotC, fullTD$compMotC2))
+```
+
+
+Gershman, 2015 (Adapt to distribution of rewards)
+
+```{r}
+# split into 7 intervals
+bins<-cut(fullTD$RVB - fullTD$LVB, 7)
+binDf <- fullTD
+binDf$bins <- bins
+# what are the proportion of left/right choices at each interval
+output <- tapply(fullTD$choice, bins, function(x) prop.table(table(x)))
+# for pos
+outputP <- tapply(fullTD$choice[fullTD$valChoice==2], bins[fullTD$valChoice==2], function(x) prop.table(table(x)))
+# for neg
+outputN <- tapply(fullTD$choice[fullTD$valChoice==1], bins[fullTD$valChoice==1], function(x) prop.table(table(x)))
+
+# extract cut intervals as numeric
+intervals <- read.table(text = gsub("[^.0-9]", " ", levels(bins)), col.names = c("lower", "upper"))
+# extract only even elements for right choice, put in dataframe
+output<-data.frame(bins = c(-intervals[1:4,1],intervals[5:7,2]),
+           empirical = as.numeric(unlist(output)[c(FALSE,TRUE)]))
+
+plot(output)
+```
+
+```{r}
+
+fullTD$desEnt <- apply(cbind(fullTD$leftDesAP, fullTD$rightDesAP), 1, entropy)
+fullTD$apEnt <- apply(cbind(fullTD$rAP, fullTD$lAP), 1, entropy)
+fullTD$aveEnt <- apply(cbind(fullTD$aveL.AP, fullTD$aveR.AP), 1, entropy)
+fullTD$svEnt <- apply(cbind(fullTD$RSV.AP, fullTD$LSV.AP), 1, entropy)
+```
+
+
+
+```{r}
+#setwd("~/Google Drive/Volumes/Research Project/Competing Motives/Data Analysis/")
+setwd("/Volumes/GoogleDrive/My Drive/Volumes/Research Project/Competing Motives/Data Analysis/")
+fullTD <- fullTD[order(fullTD$subID, fullTD$trialTotal),]
+write.csv(fullTD, "fullDf.csv", row.names = FALSE)
+```
+
+```{r}
+#setwd("/Volumes/Research Project/Social Evaluative Feedback fMRI/Data/Behavioral/")
+setwd("~/Google Drive/Volumes/Research Project/Competing Motives/Data Storage/ReEvalPhase/")
+mergedRaw <- read_bulk(directory = getwd(), extension = ".csv", fun = read.csv)
+mergedRaw <- mergedRaw[order(mergedRaw$subID),]
+mergedRaw[mergedRaw == -99] <- NA
+filteredRaw <- mergedRaw[c(1,5:7,9:12,14)]
+```
+remove subjects
+```{r}
+filteredRaw <- filteredRaw[filteredRaw$subID!=22, ]
+cleanRe <- filteredRaw
+```
+
+
+```{r}
+cleanRe$cueType <- NA
+for (i in 1:nrow(cleanRe)) {
+
+if (cleanRe$propT[i] == 1 & cleanRe$valence[i] == 1){
+    cleanRe$cueType[i] <- 1
+}
+if (cleanRe$propT[i] == 2 & cleanRe$valence[i] == 1){
+    cleanRe$cueType[i] <- 2
+}
+if (cleanRe$propT[i] == 3 & cleanRe$valence[i] == 1){
+    cleanRe$cueType[i] <- 3
+}
+if (cleanRe$propT[i] == 1 & cleanRe$valence[i] == 2){
+    cleanRe$cueType[i] <- 4
+}
+if (cleanRe$propT[i] == 2 & cleanRe$valence[i] == 2){
+    cleanRe$cueType[i] <- 5
+}
+if (cleanRe$propT[i] == 3 & cleanRe$valence[i] == 2){
+    cleanRe$cueType[i] <- 6
+}
+}
+```
+
+```{r}
+allCents[2] <- NULL
+cleanRe <- merge(cleanRe, allCents, by = "trait")
+```
+
+```{r}
+c1<-dput(unique(cleanRe$Idx[cleanRe$cluster.x==1]))
+c2<-dput(unique(cleanRe$Idx[cleanRe$cluster.x==2]))
+c3<-dput(unique(cleanRe$Idx[cleanRe$cluster.x==3]))
+c4<-dput(unique(cleanRe$Idx[cleanRe$cluster.x==4]))
+c5<-dput(unique(cleanRe$Idx[cleanRe$cluster.x==5]))
+c6<-dput(unique(cleanRe$Idx[cleanRe$cluster.x==6]))
+clusterInds<-list(c1,c2,c3,c4,c5,c6)
+
+which(!is.na(lapply(clusterInds, function(x) match(191, x))))
+```
+
+
+```{r}
+# cleanRe <- cleanRe[order(cleanRe$subID, cleanRe$trialTotal),]
+# fullTD <- fullTD[order(fullTD$subID, fullTD$trialTotal),]
+# uIds <- unique(cleanRe$subID)
+# uTrait <- unique(cleanRe$Idx)
+# uClust <- unique(cleanRe$cueType)
+# 
+# cleanRe$valEstF <- NA
+# cleanRe$valEstN <- NA
+# cleanRe$valEstC <- NA
+# for(i in uIds){
+#   subDf <- fullTD[fullTD$subID==i,]
+#   maxCues <- tapply(seq_along(subDf$choiceCue), subDf$choiceCue, max)
+#   
+#   pairs<-data.frame(subDf$choiceCue, subDf$clustChoice)
+#   pairs<-pairs[!duplicated(pairs),]
+#   pairs<-paste0(pairs$subDf.clustChoice, pairs$subDf.choiceCue)
+#   pairs<-sort(pairs)
+#   
+#   for(j in uTrait){
+#     if(j > 148){
+#       t<-j-148
+#       maxVal.N <- subDf[nrow(subDf), paste0("wn",t)]
+#     }else{
+#       t<-j
+#       maxVal.N <- subDf[nrow(subDf), paste0("wp",t)]
+#     }
+#     cleanRe$valEstN[cleanRe$subID == i & cleanRe$Idx==j] <- maxVal.N
+#     
+#     c<-0
+#     # idPropT <- subDf$leftPropT[subDf$IdxLeft==j]
+#     # if(length(idPropT)==0){
+#     #   idPropT <- subDf$rightPropT[subDf$IdxRight==j]
+#     # }
+#     # idCueT <- unique(subDf$leftCue[subDf$IdxLeft==j])
+#     # if(length(idCueT)==0){
+#     #   idCueT <- unique(subDf$rightCue[subDf$IdxRight==j])
+#     # }
+#     
+#     # which cluster does trait belong to
+#     curClust <- which(!is.na(lapply(clusterInds, function(x) match(j, x))))
+#     # what is the cluster-cue pairing
+#     curPair <- pairs[curClust]
+#     # subset the cue pairing
+#     idCueT <- as.numeric(substring(curPair, 2, 2))
+#     
+#     maxRow <- maxCues[idCueT]
+#     column <- c + idCueT
+#     maxVal.C <- subDf[maxRow, paste0("wc",column)]
+#     cleanRe$valEstC[cleanRe$subID == i & cleanRe$cueType==j] <- maxVal.C
+#     
+#     maxVal <- GraphPropCommValBiasFix.ParamDf$cnMix[GraphPropCommValBiasFix.ParamDf$subID==i] * maxVal.N + (1 - GraphPropCommValBiasFix.ParamDf$cnMix[GraphPropCommValBiasFix.ParamDf$subID==i]) * maxVal.C
+#     if(length(maxVal)==0){
+#       maxVal <- maxVal.C
+#     }
+#     
+#     cleanRe$valEstF[cleanRe$subID == i & cleanRe$Idx==j] <- maxVal
+#   }
+# }
+# cleanRe <- cleanRe[order(cleanRe$subID, cleanRe$trialTotal),]
+```
+
+```{r}
+fullTD <- fullTD[order(fullTD$subID, fullTD$trialTotal),]
+uIds <- unique(fullTD$subID)
+uCue <- unique(fullTD$choiceCue)
+cleanRe$aveCueF <- NA
+cleanRe$aveCueTF <- NA
+cleanRe$aveSD <- NA
+cleanRe$sumCueF <- NA
+
+for(i in uIds){
+  subDf <- fullTD[fullTD$subID==i,]
+  for(j in uCue){
+    cueDf <- subDf[subDf$choiceCue==j,]
+    aveCue <- mean(cueDf$result, na.rm = T)
+    aveSD <- sd(cueDf$result, na.rm = T)
+    sumCue <- sum(cueDf$result, na.rm = T)
+    sumChoices <- nrow(cueDf)
+    propChoices <- nrow(cueDf)/nrow(subDf[(subDf$leftCue == j | subDf$rightCue == j),])
+    aveCueStat <- mean(cueDf$result, na.rm=T)/(var(cueDf$result, na.rm=T)/sqrt( length(cueDf$result) ) )
+    
+    cleanRe$aveCueF[cleanRe$subID == i & cleanRe$cueType==j] <- aveCue
+    cleanRe$aveSD[cleanRe$subID == i & cleanRe$cueType==j] <- aveSD
+    cleanRe$aveCueTF[cleanRe$subID == i & cleanRe$cueType==j] <- aveCueStat
+    cleanRe$sumCueF[cleanRe$subID == i & cleanRe$cueType==j] <- sumCue
+    cleanRe$choiceCueF[cleanRe$subID == i & cleanRe$cueType==j] <- sumChoices
+    cleanRe$propCueF[cleanRe$subID == i & cleanRe$cueType==j] <- propChoices
+    
+  }
+}
+```
+
+```{r}
+fullTD <- fullTD[order(fullTD$subID, fullTD$trialTotal),]
+uIds <- unique(fullTD$subID)
+cleanRe$SV_F <- NA
+cleanRe$valEstF <- NA
+for(i in uIds){
+  subDf <- fullTD[fullTD$subID==i,]
+  # weiNum <- grep("w1", colnames(subDf))
+  # c <- weiNum - 1
+  uCue <- unique(subDf$IdxChoose)
+  
+  for(j in uCue){
+      
+      V_S <- NA
+      V_S2 <- NA
+      prevs <- uCue
+      ind <- j
+      
+      indCP <- ind
+      indCN <- ind-148
+      prevsN <- prevs[which(prevs>148)] - 148
+      prevsP <- prevs[which(prevs<149)]
+      if(ind<149 & sum(prevs<149) > 0){
+        curSimP <- similarity.dice(posGraph)[indCP,prevsP]
+        
+        prevFeed <- subDf$result
+        prevFeedP2 <- prevFeed[which(prevs<149)]
+        prevFeedN2 <- prevFeed[which(prevs>148)]
+
+        V_S = sum(curSimP * prevFeedP2) / sum(curSimP)
+        
+        curSimN <- rep(0, length(prevFeedN2))
+      }
+
+      if(ind>148 & sum(prevs>148) > 0 ){
+        curSimN <- similarity.dice(negGraph)[indCN,prevsN]
+
+        
+        prevFeed <- subDf$result
+        prevFeedP2 <- prevFeed[which(prevs<149)]
+        prevFeedN2 <- prevFeed[which(prevs>148)]
+        V_S = sum(curSimN * prevFeedN2) / sum(curSimN)
+        
+        curSimP <- rep(0, length(prevFeedP2))
+      }
+      
+      if( all(prevs>148) & ind < 149){
+        V_S2 = 0
+      }else if( all(prevs<149) == 1 & ind > 148){
+        V_S2 = 0
+      }else if(sum(prevs<149) == 0){
+        V_S2 = sum(sum(curSimN * prevFeedN2)) / sum(c(prevFeedN2)) 
+        curSim = c(curSimN)
+      }else if(sum(prevs>148) == 0){
+        V_S2 = sum(sum(curSimP * prevFeedP2)) / sum(c(prevFeedP2)) 
+        curSim = c(curSimP)
+      }else if(sum(prevs>148) > 0 & sum(prevs<149) > 0){
+        V_S2 = sum(c(sum(curSimP * prevFeedP2), sum(curSimN * prevFeedN2))) / sum(c(prevFeedP2, prevFeedN2)) 
+        curSim = c(curSimP,curSimN)
+      }else{
+        V_S2 = 0
+      }
+      
+      cleanRe$Sim[cleanRe$subID == i & cleanRe$Idx==j] <- mean(curSim)
+      cleanRe$SV_F[cleanRe$subID == i & cleanRe$Idx==j] <- V_S2
+      cleanRe$valEstF[cleanRe$subID == i & cleanRe$Idx==j] <- V_S2 * params$mix[params$subID==i] + (allCents$desirability[allCents$Idx==j]/7) * (1 - params$mix[params$subID==i])
+      
+  }
+}
+```
+
+
+
+```{r}
+setwd("~/Google Drive/Volumes/Research Project/Competing Motives/Data Analysis/")
+cleanRe <- cleanRe[order(cleanRe$subID, cleanRe$trialTotal),]
+write.csv(cleanRe, "reEvalDfnew.csv", row.names = FALSE)
+```
+

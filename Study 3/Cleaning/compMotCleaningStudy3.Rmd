@@ -1,0 +1,1491 @@
+---
+title: "feedback_merge+clean"
+output: html_document
+---
+
+```{r}
+source("/Volumes/GoogleDrive/My Drive/Volumes/Research Project/Competing Motives/Data Analysis/RL_Models/BehGen/SimCM_RB.R")
+```
+
+
+```{r}
+library(compiler)
+library(readbulk) 
+library(psych)
+library(forcats)
+library(igraph)
+library(MASS)
+library(lme4)
+library(cluster)
+library(Kendall)
+library(readr)
+library(psych)
+library(igraph)
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library(reshape2)
+library(tidyr)
+library(gtools)
+library(sjstats)
+library(brms)
+library(optimx)
+library(igraph)
+library(loo)
+cOptimx <- cmpfun(optimx)
+
+library(parallel)
+library(doParallel)
+library("rstan") # observe startup messages
+library("tidyverse")
+```
+
+```{r}
+setwd("~/Google Drive/Volumes/")
+posDf <- read.csv("./Research Project/Trait Network_Behaviral/generating network/output/adjacencyMatrix_p.csv")
+posMat <- as.matrix(posDf)
+posGraph <- graph.adjacency(posMat)
+negDf <- read.csv("./Research Project/Trait Network_Behaviral/generating network/output/adjacencyMatrix_n.csv")
+negMat <- as.matrix(negDf)
+negGraph <- graph.adjacency(negMat)
+```
+
+```{r}
+wd1 <- "/Volumes/GoogleDrive/My Drive/Volumes/Research Project/"
+#wd2 <- "~/Google Drive/Volumes/Research Project/"
+```
+
+
+```{r}
+
+setwd(wd1)
+allPosCents <- read.csv("/Volumes/GoogleDrive/My Drive/Volumes/Research Project/Trait Network_Behaviral/generating network/output/allPosCents.csv")
+allNegCents <- read.csv("/Volumes/GoogleDrive/My Drive/Volumes/Research Project/Trait Network_Behaviral/generating network/output/allNegCents.csv")
+allCombCents <- rbind(allPosCents, allNegCents)
+allCombCents$Idx <- 1:296
+mergedRaw <- read_bulk(directory = "./Competing Motives/Data Storage/Study3/", extension = ".csv", fun = read.csv)
+```
+
+```{r}
+# #"A2Z5FOCEG3L3BU" "A3M81P9BEVE1GD" "A2J4V0G1A63ZYB" "A56AI5TXE0BNK"  "AYY3KXXADL8U"   # "A1UFSFCR5TWSNW"
+# whynotIDs<-c("A2Z5FOCEG3L3BU", "A3M81P9BEVE1GD", "A2J4V0G1A63ZYB", "A56AI5TXE0BNK", "AYY3KXXADL8U", "A1UFSFCR5TWSNW")
+# 
+# whynotDf <- mergedRawt[mergedRawt$participant %in% whynotIDs,]
+# 
+# #and for some reason the following subjects were retained even though they did not complete the questionnaires
+# # "A1V8FJHR0XVNCV" "A3E74I2YTGJCRF" "AT18821Z3QWU3" 
+#whyIDs<-c("A1V8FJHR0XVNCV", "A3E74I2YTGJCRF", "AT18821Z3QWU3")
+```
+
+
+```{r}
+# 1 is currently right and 2 is left. change so 1 is left and 2 is right
+mergedRaw$choiceResp[mergedRaw$choiceResp==2 & !is.na(mergedRaw$choiceResp)] <- 3
+mergedRaw$choiceResp[mergedRaw$choiceResp==1 & !is.na(mergedRaw$choiceResp)] <- 2
+mergedRaw$choiceResp[mergedRaw$choiceResp==3 & !is.na(mergedRaw$choiceResp)] <- 1
+
+mergedRaw$valLeft[mergedRaw$valLeft==1 & !is.na(mergedRaw$valLeft)] <- 3
+mergedRaw$valRight[mergedRaw$valRight==1 & !is.na(mergedRaw$valRight)] <- 3
+mergedRaw$valLeft[mergedRaw$valLeft==2 & !is.na(mergedRaw$valLeft)] <- 1
+mergedRaw$valRight[mergedRaw$valRight==2 & !is.na(mergedRaw$valRight)] <- 1
+mergedRaw$valLeft[mergedRaw$valLeft==3 & !is.na(mergedRaw$valLeft)] <- 2
+mergedRaw$valRight[mergedRaw$valRight==3 & !is.na(mergedRaw$valRight)] <- 2
+```
+
+```{r}
+mergedRaw[mergedRaw==-9] <- NA
+```
+
+populate empty cells in condition column with initial condition value for participant
+
+```{r}
+while(length(ind <- which(mergedRaw$condition == "")) > 0){
+  mergedRaw$condition[ind] <- mergedRaw$condition[ind -1]
+}
+```
+
+
+```{r}
+# index the columns for the re-evaluation phase and the learning phase
+mergedRawt <- mergedRaw[is.na(mergedRaw$SE.keys),]
+mergedRawt <- mergedRawt[c(1:grep("^pair$",colnames(mergedRawt)))]
+mergedRawr <- mergedRaw[c(grep("^participant$",colnames(mergedRaw)),grep("^condition$",colnames(mergedRaw)), grep("^SE.keys$", colnames(mergedRaw)):ncol(mergedRaw)  )]
+# rows for moving all of the pair conditions up
+#lastRow <- which.last(!is.na(mergedRawt$conditions.thisTrialN))
+#rows<-1:lastRow
+rows <- 1:nrow(mergedRawt)
+odd<-rows[rows%%2==1]
+even<-rows[rows%%2==0]
+#mergedRawt[odd, grep("conditions.thisRepN", colnames(mergedRawt) ):ncol(mergedRawt)] <- mergedRawt[even, grep("conditions.thisRepN", colnames(mergedRawt) ):ncol(mergedRawt)]
+for(i in 2:nrow(mergedRawt)){
+  if(mergedRawt$pair[i]!=""){
+    mergedRawt$pair[i-1] <- mergedRawt$pair[i]
+    mergedRawt$conditions.thisTrialN[i-1] <- mergedRawt$conditions.thisTrialN[i]
+  }
+}
+# while(length(ind <- which(mergedRawt$pair == "")) > 0){
+#   mergedRawt$pair[ind] <- mergedRawt$pair[ind -1]
+# }
+# while(length(ind <- which( is.na(mergedRawt$conditions.thisTrialN) )) > 0){
+#   mergedRawt$conditions.thisTrialN[ind] <- mergedRawt$conditions.thisTrialN[ind -1]
+# }
+# remove unused rows
+mergedRawt <- mergedRawt[!is.na(mergedRawt$trials.thisN),]
+mergedRawr <- mergedRawr[!is.na(mergedRawr$trials_2.thisTrialN),]
+# remove extraneous columns from learning dataframe
+mergedRawt[c(grep("^toCont.keys$",colnames(mergedRawt)):grep("^toContAgainAgain.rt$",colnames(mergedRawt)), grep("^trials.thisRepN$",colnames(mergedRawt)):grep("^val2$",colnames(mergedRawt)), grep("^date$",colnames(mergedRawt)):grep("^conditions.thisRepN$",colnames(mergedRawt)), grep("^condFile$",colnames(mergedRawt)) , grep("^conditions.thisN$",colnames(mergedRawt)):grep("^conditions.ran$",colnames(mergedRawt)) )] <- NULL
+# remove extraneous columns from evaluation dataframe
+mergedRawr[c(grep("^trials_2.thisRepN$",colnames(mergedRawr)), grep("^selfResp$",colnames(mergedRawr)) , grep("^trials_2.thisN$",colnames(mergedRawr)):ncol(mergedRawr) )] <- NULL
+# increase trial numbers because python is a zero-based language
+mergedRawt$conditions.thisTrialN <- mergedRawt$conditions.thisTrialN + 1
+mergedRawr$trials_2.thisTrialN <- mergedRawr$trials_2.thisTrialN + 1
+```
+
+rename columns
+```{r}
+allCombCents$valence <- as.numeric(revalue(allCombCents$valence, c("positive"=2, "negative"=1)))
+mergedRawt <- merge(mergedRawt, allCombCents[c("trait","valence")], by.x = "traitChoice", by.y = "trait", all.x = T)
+
+names(mergedRawt)[colnames(mergedRawt)=="valence"] <- "valChoice"
+names(mergedRawt)[colnames(mergedRawt)=="participant"] <- "subID"
+names(mergedRawr)[colnames(mergedRawr)=="participant"] <- "subID"
+names(mergedRawt)[colnames(mergedRawt)=="resp.rt"] <- "RT"
+names(mergedRawr)[colnames(mergedRawr)=="SE.rt"] <- "RT"
+names(mergedRawr)[colnames(mergedRawr)=="SE.keys"] <- "selfResp"
+names(mergedRawt)[colnames(mergedRawt)=="conditions.thisTrialN"] <- "trialTotal"
+names(mergedRawt)[colnames(mergedRawt)=="clustRight"] <- "rightClust"
+names(mergedRawt)[colnames(mergedRawt)=="clustLeft"] <- "leftClust"
+names(mergedRawt)[colnames(mergedRawt)=="valLeft"] <- "leftValence"
+names(mergedRawt)[colnames(mergedRawt)=="valRight"] <- "rightValence"
+names(mergedRawt)[colnames(mergedRawt)=="propLeft"] <- "leftPropT"
+names(mergedRawt)[colnames(mergedRawt)=="propRight"] <- "rightPropT"
+names(mergedRawt)[colnames(mergedRawt)=="propChoice"] <- "propTChoice"
+names(mergedRawt)[colnames(mergedRawt)=="proportion"] <- "choiceProp"
+names(mergedRawt)[colnames(mergedRawt)=="choiceResp"] <- "choice"
+```
+
+```{r}
+mergedRawt$pairID <- mergedRawt$pairID + 1
+mergedRawt$uPairID <- mergedRawt$pairID
+mergedRawt$uPairID[mergedRawt$pair=="NN"] <- mergedRawt$uPairID[mergedRawt$pair=="NN"] + 4000
+mergedRawt$uPairID[mergedRawt$pair=="PN"] <- mergedRawt$uPairID[mergedRawt$pair=="PN"] + 8000
+
+# positive pairs range from 1 to 3500
+min(mergedRawt$uPairID[mergedRawt$pair=="PP"])
+max(mergedRawt$uPairID[mergedRawt$pair=="PP"])
+# negative pairs range from 4001 to 7500
+min(mergedRawt$uPairID[mergedRawt$pair=="NN"])
+max(mergedRawt$uPairID[mergedRawt$pair=="NN"])
+# positive-negative pairs range from 8001 to 19022
+min(mergedRawt$uPairID[mergedRawt$pair=="PN"])
+max(mergedRawt$uPairID[mergedRawt$pair=="PN"])
+```
+
+```{r}
+# check for anyone who had more than allocated trial amount... may have run study twice or SONA somehow duplicated IDs
+uIds <- unique(mergedRawt$subID)
+dups <- c()
+for(i in uIds){
+  if(nrow(subset(mergedRawt, subID == i)) > 150){
+    dups <- c(dups, i)
+  }
+}
+for(i in dups){
+  subDf<-subset(mergedRawt, subID==i) # extract subject with duplicates
+  subDf <- subDf[!duplicated(subDf[subDf$subID==i,]),] # remove duplicates from subject
+  mergedRawt <- mergedRawt[!mergedRawt$subID==i,] # remove subject from df
+  mergedRawt <- rbind(mergedRawt, subDf) # bind non-duplicated subject df
+  
+  # do again for re-evaluation
+  subDf<-subset(mergedRawr, subID==i)
+  subDf <- subDf[!duplicated(subDf[subDf$subID==i,]),]
+  mergedRawr <- mergedRawr[!mergedRawr$subID==i,]
+  mergedRawr <- rbind(mergedRawr, subDf)
+}
+
+
+mergedRawt <- mergedRawt[order(mergedRawt$subID, mergedRawt$trialTotal),]
+#subset(mergedRawt, subID == "A2BZQUK5IPFPIW")
+# Worker ID appears twice for some reason. I archived later instance and retained only first version.
+```
+
+```{r}
+removeNAsT <- c()
+for(i in uIds){
+  #if(all(is.na(mergedRawt$valChoice[mergedRawt$subID==i])) ){
+  if( mean(is.na(mergedRawt$valChoice[mergedRawt$subID==i])) > .70 ){
+    removeNAsT <- c(removeNAsT, i)
+    mergedRawt<-mergedRawt[!mergedRawt$subID==i,]
+  }
+}
+paste0("Removed: ",length(removeNAsT),", Remaining: ",length(unique(mergedRawt$subID)) )
+
+mergedRawr <- mergedRawr[!mergedRawr$subID %in% removeNAsT,]
+
+uIds <- unique(mergedRawr$subID)
+removeNAsR <- c()
+for(i in uIds){
+  #if(  all(is.na(mergedRawr$selfResp[mergedRawr$subID==i])) ){
+  if(  mean(is.na(mergedRawr$selfResp[mergedRawr$subID==i])) > .70 ){
+  removeNAsR <- c(removeNAsR, i)
+  mergedRawr<-mergedRawr[!mergedRawr$subID==i,]
+  }
+}
+
+paste0("Removed: ",length(removeNAsR),", Remaining: ",length(unique(mergedRawr$subID)) )
+```
+
+remove participants that did not believe study (Gillan et al., 2015; Hackel et al., 2020; Hackel & Zaki, 2018)
+```{r}
+# paste0("Sample size prior to removal is ", length(unique(mergedRawt$subID)))
+# remIds <- c()
+# uIds<-unique(mergedRawt$subID)
+# for(i in uIds){
+#   subDft <- subset(mergedRawt, subID == i)
+#   subDfr <- subset(mergedRawr, subID == i)
+#   choiceFreq <- as.numeric(prop.table(table(subDft$choice, useNA = "no")))
+#   if( (sum(is.na(subDft$choice))/length(subDft$choice) > .35) 
+#       #(sum(is.na(subDfr$selfResp))/length(subDfr$selfResp)) > .4 
+#       # choiceFreq[1] >= .8 |
+#       # choiceFreq[2] >= .80
+#       ){
+#     remIds <- c(remIds, i)
+#   }
+# }
+# paste0("The number of subjects that should be removed is ", length(remIds))
+# paste0("The sample after exclusions is ", (length(unique(mergedRawt$subID))-length(remIds)) )
+# 
+# mergedRawt <- mergedRawt[!mergedRawt$subID %in% remIds,]
+# mergedRawt <- mergedRawt[!mergedRawr$subID %in% remIds,]
+```
+
+
+```{r}
+mergedRawt$leftCue <- NA
+mergedRawt$rightCue <- NA
+mergedRawt$choiceCue <- NA
+for (i in 1:nrow(mergedRawt)) {
+  # for left
+if (mergedRawt$leftPropT[i] == 1 & mergedRawt$leftValence[i] == 1){
+    mergedRawt$leftCue[i] <- 1
+}
+if (mergedRawt$leftPropT[i] == 2 & mergedRawt$leftValence[i] == 1){
+    mergedRawt$leftCue[i] <- 2
+}
+if (mergedRawt$leftPropT[i] == 3 & mergedRawt$leftValence[i] == 1){
+    mergedRawt$leftCue[i] <- 3
+}
+if (mergedRawt$leftPropT[i] == 1 & mergedRawt$leftValence[i] == 2){
+    mergedRawt$leftCue[i] <- 4
+}
+if (mergedRawt$leftPropT[i] == 2 & mergedRawt$leftValence[i] == 2){
+    mergedRawt$leftCue[i] <- 5
+}
+if (mergedRawt$leftPropT[i] == 3 & mergedRawt$leftValence[i] == 2){
+    mergedRawt$leftCue[i] <- 6
+}
+  
+  # for right
+if (mergedRawt$rightPropT[i] == 1 & mergedRawt$rightValence[i] == 1){
+    mergedRawt$rightCue[i] <- 1
+}
+if (mergedRawt$rightPropT[i] == 2 & mergedRawt$rightValence[i] == 1){
+    mergedRawt$rightCue[i] <- 2
+}
+if (mergedRawt$rightPropT[i] == 3 & mergedRawt$rightValence[i] == 1){
+    mergedRawt$rightCue[i] <- 3
+}
+if (mergedRawt$rightPropT[i] == 1 & mergedRawt$rightValence[i] == 2){
+    mergedRawt$rightCue[i] <- 4
+}
+if (mergedRawt$rightPropT[i] == 2 & mergedRawt$rightValence[i] == 2){
+    mergedRawt$rightCue[i] <- 5
+}
+if (mergedRawt$rightPropT[i] == 3 & mergedRawt$rightValence[i] == 2){
+    mergedRawt$rightCue[i] <- 6
+}
+
+if( !is.na(mergedRawt$choice[i]) ){
+  # for choice
+if (mergedRawt$propTChoice[i] == 1 & mergedRawt$valChoice[i] == 1){
+    mergedRawt$choiceCue[i] <- 1
+}
+if (mergedRawt$propTChoice[i] == 2 & mergedRawt$valChoice[i] == 1){
+    mergedRawt$choiceCue[i] <- 2
+}
+if (mergedRawt$propTChoice[i] == 3 & mergedRawt$valChoice[i] == 1){
+    mergedRawt$choiceCue[i] <- 3
+}
+if (mergedRawt$propTChoice[i] == 1 & mergedRawt$valChoice[i] == 2){
+    mergedRawt$choiceCue[i] <- 4
+}
+if (mergedRawt$propTChoice[i] == 2 & mergedRawt$valChoice[i] == 2){
+    mergedRawt$choiceCue[i] <- 5
+}
+if (mergedRawt$propTChoice[i] == 3 & mergedRawt$valChoice[i] == 2){
+    mergedRawt$choiceCue[i] <- 6
+}
+}
+
+}
+```
+
+```{r}
+mergedRawt$pairCong <- NA
+for(i in 1:nrow(mergedRawt)){
+  if (mergedRawt$leftValence[i] == 1 & mergedRawt$rightValence[i] == 1){
+    mergedRawt$pairCong[i] <- 1
+  } else if (mergedRawt$leftValence[i] == 2 & mergedRawt$rightValence[i] == 2) {
+  mergedRawt$pairCong[i] <- 3
+  } else {
+  mergedRawt$pairCong[i] <- 2
+}
+}
+```
+
+```{r}
+mergedRawt <- merge(mergedRawt, allCombCents[c("trait", "desirability", "category", "interpersonal", "observability", "prevalence", "outDegree", "inDegree", "eigen", "close", "between", "Idx")], by.x = "traitLeft", by.y = "trait", all.x = T)
+names(mergedRawt)[names(mergedRawt)=="desirability"] <- "desirLeft"
+names(mergedRawt)[names(mergedRawt)=="category"] <- "catLeft"
+names(mergedRawt)[names(mergedRawt)=="interpersonal"] <- "interLeft"
+names(mergedRawt)[names(mergedRawt)=="observability"] <- "obsLeft"
+names(mergedRawt)[names(mergedRawt)=="prevalence"] <- "prevLeft"
+names(mergedRawt)[names(mergedRawt)=="outDegree"] <- "outLeft"
+names(mergedRawt)[names(mergedRawt)=="inDegree"] <- "inLeft"
+names(mergedRawt)[names(mergedRawt)=="eigen"] <- "eigLeft"
+names(mergedRawt)[names(mergedRawt)=="between"] <- "betLeft"
+names(mergedRawt)[names(mergedRawt)=="close"] <- "closeLeft"
+names(mergedRawt)[names(mergedRawt)=="Idx"] <- "IdxLeft"
+mergedRawt <- merge(mergedRawt, allCombCents[c("trait", "desirability", "category", "interpersonal", "observability", "prevalence", "outDegree", "inDegree", "eigen", "close", "between", "Idx")], by.x = "traitRight", by.y = "trait")
+names(mergedRawt)[names(mergedRawt)=="desirability"] <- "desirRight"
+names(mergedRawt)[names(mergedRawt)=="category"] <- "catRight"
+names(mergedRawt)[names(mergedRawt)=="interpersonal"] <- "interRight"
+names(mergedRawt)[names(mergedRawt)=="observability"] <- "obsRight"
+names(mergedRawt)[names(mergedRawt)=="prevalence"] <- "prevRight"
+names(mergedRawt)[names(mergedRawt)=="outDegree"] <- "outRight"
+names(mergedRawt)[names(mergedRawt)=="inDegree"] <- "inRight"
+names(mergedRawt)[names(mergedRawt)=="eigen"] <- "eigRight"
+names(mergedRawt)[names(mergedRawt)=="between"] <- "betRight"
+names(mergedRawt)[names(mergedRawt)=="close"] <- "closeRight"
+names(mergedRawt)[names(mergedRawt)=="Idx"] <- "IdxRight"
+
+```
+
+```{r}
+#mergedRawt$ZsterRight <- scale(mergedRawt$sterRight)
+#mergedRawt$ZsterLeft <- scale(mergedRawt$sterLeft)
+mergedRawt$ZdesirRight <- scale(mergedRawt$desirRight)
+mergedRawt$ZdesirLeft <- scale(mergedRawt$desirLeft)
+mergedRawt$ZinterRight <- scale(mergedRawt$interRight)
+mergedRawt$ZinterLeft <- scale(mergedRawt$interLeft)
+mergedRawt$ZobsRight <- scale(mergedRawt$obsRight)
+mergedRawt$ZobsLeft <- scale(mergedRawt$obsLeft)
+mergedRawt$ZprevRight <- scale(mergedRawt$prevRight)
+mergedRawt$ZprevLeft <- scale(mergedRawt$prevLeft)
+mergedRawt$ZcatRight <- scale(mergedRawt$catRight)
+mergedRawt$ZcatLeft <- scale(mergedRawt$catLeft)
+mergedRawt$ZoutLeft <- scale(mergedRawt$outLeft)
+mergedRawt$ZinLeft <- scale(mergedRawt$inLeft)
+mergedRawt$ZeigLeft <- scale(mergedRawt$eigLeft)
+mergedRawt$ZcloseLeft <- scale(mergedRawt$closeLeft)
+mergedRawt$ZbetLeft <- scale(mergedRawt$betLeft)
+mergedRawt$ZoutRight <- scale(mergedRawt$outRight)
+mergedRawt$ZinRight <- scale(mergedRawt$inRight)
+mergedRawt$ZeigRight <- scale(mergedRawt$eigRight)
+mergedRawt$ZcloseRight <- scale(mergedRawt$closeRight)
+mergedRawt$ZbetRight <- scale(mergedRawt$betRight)
+```
+
+```{r}
+mergedRawt$greatDes <- NA
+for(i in 1:nrow(mergedRawt)){
+  if (mergedRawt$desirLeft[i] > mergedRawt$desirRight[i]){
+    mergedRawt$greatDes[i] <- 1
+  } else if (mergedRawt$desirRight[i] > mergedRawt$desirLeft[i]) {
+  mergedRawt$greatDes[i] <- 2
+  } else {
+  mergedRawt$greatDes[i] <- 3
+}
+}
+
+mergedRawt$chooseDes <- NA
+mergedRawt$desDiff <- NA
+for(i in 1:nrow(mergedRawt)){
+  if(!is.na(mergedRawt$choice[i])){
+    if (mergedRawt$choice[i] == mergedRawt$greatDes[i]){
+      mergedRawt$chooseDes[i] <- 1
+    } else {
+    mergedRawt$chooseDes[i] <- 0
+    }
+    if(mergedRawt$choice[i]==1){
+      mergedRawt$desDiff[i] <- mergedRawt$desirLeft[i] - mergedRawt$desirRight[i]
+    } else if (mergedRawt$choice[i]==2){
+      mergedRawt$desDiff[i] <- mergedRawt$desirRight[i] - mergedRawt$desirLeft[i]
+    }
+  }else{
+    mergedRawt$chooseDes[i]<-NA
+    mergedRawt$desDiff[i]<-NA
+  }
+}
+
+mergedRawt$chooseGroup <- NA
+for(i in 1:nrow(mergedRawt)){
+  if(!is.na(mergedRawt$choice[i])){
+    if (mergedRawt$propTChoice[i] >= mergedRawt$leftPropT[i] & mergedRawt$propTChoice[i] >= mergedRawt$rightPropT[i]){
+      mergedRawt$chooseGroup[i] <- 1
+    } else {
+    mergedRawt$chooseGroup[i] <- 0
+    }
+  }else{
+    mergedRawt$chooseGroup[i]<-NA
+  }
+}
+
+mergedRawt$greatOut <- NA
+for(i in 1:nrow(mergedRawt)){
+  if (mergedRawt$outLeft[i] > mergedRawt$outRight[i]){
+    mergedRawt$greatOut[i] <- 1
+  } else if (mergedRawt$outRight[i] > mergedRawt$outLeft[i]) {
+  mergedRawt$greatOut[i] <- 2
+  } else {
+  mergedRawt$greatOut[i] <- 3
+}
+}
+
+mergedRawt$chooseOut <- NA
+mergedRawt$outDiff <- NA
+for(i in 1:nrow(mergedRawt)){
+  if(!is.na(mergedRawt$choice[i])){
+    if (mergedRawt$choice[i] == mergedRawt$greatOut[i]){
+      mergedRawt$chooseOut[i] <- 1
+    } else {
+    mergedRawt$chooseOut[i] <- 0
+    }
+    if(mergedRawt$choice[i]==1){
+      mergedRawt$outDiff[i] <- mergedRawt$outLeft[i] - mergedRawt$outRight[i]
+    } else if (mergedRawt$choice[i]==2){
+      mergedRawt$outDiff[i] <- mergedRawt$outRight[i] - mergedRawt$outLeft[i]
+    }
+  }else{
+    next
+  }
+}
+
+
+mergedRawt$greatIn <- NA
+for(i in 1:nrow(mergedRawt)){
+  if (mergedRawt$inLeft[i] > mergedRawt$inRight[i]){
+    mergedRawt$greatIn[i] <- 1
+  } else if (mergedRawt$inRight[i] > mergedRawt$inLeft[i]) {
+  mergedRawt$greatIn[i] <- 2
+  } else {
+  mergedRawt$greatIn[i] <- 3
+}
+}
+
+mergedRawt$chooseIn <- NA
+mergedRawt$inDiff <- NA
+for(i in 1:nrow(mergedRawt)){
+  if(!is.na(mergedRawt$choice[i])){
+    if (mergedRawt$choice[i] == mergedRawt$greatIn[i]){
+    mergedRawt$chooseIn[i] <- 1
+    } else {
+    mergedRawt$chooseIn[i] <- 0
+    }
+    if(mergedRawt$choice[i]==1){
+      mergedRawt$inDiff[i] <- mergedRawt$inLeft[i] - mergedRawt$inRight[i]
+    } else if (mergedRawt$choice[i]==2){
+      mergedRawt$inDiff[i] <- mergedRawt$inRight[i] - mergedRawt$inLeft[i]
+    }
+  }else{
+    next
+  }
+}
+
+
+mergedRawt$greatEig <- NA
+for(i in 1:nrow(mergedRawt)){
+    if (mergedRawt$eigLeft[i] > mergedRawt$eigRight[i]){
+      mergedRawt$greatEig[i] <- 1
+    } else if (mergedRawt$eigRight[i] > mergedRawt$eigLeft[i]) {
+    mergedRawt$greatEig[i] <- 2
+    } else {
+    mergedRawt$greatEig[i] <- 3
+  }
+}
+
+mergedRawt$chooseEig <- NA
+mergedRawt$eigDiff <- NA
+for(i in 1:nrow(mergedRawt)){
+  if(!is.na(mergedRawt$choice[i])){
+    if (mergedRawt$choice[i] == mergedRawt$greatEig[i]){
+      mergedRawt$chooseEig[i] <- 1
+    } else {
+    mergedRawt$chooseEig[i] <- 0
+    }
+    if(mergedRawt$choice[i]==1){
+      mergedRawt$eigDiff[i] <- mergedRawt$eigLeft[i] - mergedRawt$eigRight[i]
+    } else if (mergedRawt$choice[i]==2){
+      mergedRawt$eigDiff[i] <- mergedRawt$eigRight[i] - mergedRawt$eigLeft[i]
+    }
+  }else{
+    next
+  }
+}
+```
+
+```{r}
+
+logsumexp <- function (x) {
+    y <- max(x)
+    y + log(sum(exp(x - y)))
+}
+softmax <- function (x) {
+    exp(x - logsumexp(x))
+}
+
+  
+
+Idxmat<-cbind(mergedRawt$IdxLeft, mergedRawt$IdxRight)
+mergedRawt$IdxChoose <- Idxmat[cbind(seq_along(mergedRawt$choice), mergedRawt$choice)]
+
+desMat <- cbind(mergedRawt$ZdesirLeft, mergedRawt$ZdesirRight)
+desAP <- t(apply(desMat, 1, softmax))
+colnames(desAP) <- c("leftDesAP", "rightDesAP")
+mergedRawt <- cbind(mergedRawt, desAP)
+mergedRawt$desAP <- desAP[cbind(seq_along(mergedRawt$choice), mergedRawt$choice)]
+
+prevMat <- cbind(mergedRawt$ZprevLeft, mergedRawt$ZprevRight)
+prevAP <- t(apply(prevMat, 1, softmax))
+colnames(prevAP) <- c("leftprevAP", "rightprevAP")
+mergedRawt <- cbind(mergedRawt, prevAP)
+mergedRawt$prevAP <- prevAP[cbind(seq_along(mergedRawt$choice), mergedRawt$choice)]
+
+obsMat <- cbind(mergedRawt$ZobsLeft, mergedRawt$ZobsRight)
+obsAP <- t(apply(obsMat, 1, softmax))
+colnames(obsAP) <- c("leftobsAP", "rightobsAP")
+mergedRawt <- cbind(mergedRawt, obsAP)
+mergedRawt$obsAP <- obsAP[cbind(seq_along(mergedRawt$choice), mergedRawt$choice)]
+```
+
+```{r}
+mergedRawt$similarity <- NA
+mergedRawt$traitRight <- as.character(mergedRawt$traitRight)
+mergedRawt$traitLeft <- as.character(mergedRawt$traitLeft)
+
+for(i in 1:nrow(mergedRawt)){
+
+  if(mergedRawt$IdxLeft[i]>148 & mergedRawt$IdxRight[i]>148){
+    g <- negGraph
+    L <- mergedRawt$IdxLeft[i] - 148
+    R <- mergedRawt$IdxRight[i] - 148
+    
+    curSim <- similarity.dice(g)[L,R]
+  mergedRawt$similarity[i] <- curSim
+  }else if(mergedRawt$IdxRight[i] < 149 & mergedRawt$IdxLeft[i] < 149){
+    g <- posGraph
+    L <- mergedRawt$IdxLeft[i]
+    R <- mergedRawt$IdxRight[i]
+    
+  curSim <- similarity.dice(g)[L,R]
+  mergedRawt$similarity[i] <- curSim
+  }else{
+    curSim <- NA
+  }
+  
+}
+```
+
+```{r}
+fullDf <- mergedRawt
+fullDf <- fullDf[complete.cases(fullDf$trialTotal), ]
+fullDf <- fullDf[order(fullDf$subID, fullDf$trialTotal),]
+```
+
+```{r}
+setwd(paste0(wd1))
+retainedIds <- unique(fullDf$subID)
+rawQs <- read.csv("./Competing Motives/Data Analysis/Study3/input/CompMot3_QsRed.csv")
+rawIntro <- read.csv("./Competing Motives/Data Analysis/Study3/input/CompMot3_IntroRed.csv")
+```
+
+```{r}
+#rawQs <- subset(rawQs, subID != "kim")
+```
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+fullDf$propTChoice <- as.factor(fullDf$propTChoice)
+totDes <- describeBy(fullDf$choiceProp, fullDf$propTChoice)
+meanLow <- totDes$`1`$mean
+sdLow <- totDes$`1`$sd
+meanMed <- totDes$`2`$mean
+sdMed <- totDes$`2`$sd
+meanHigh <- totDes$`3`$mean
+sdHigh <- totDes$`3`$sd
+uIds <- unique(fullDf$subID)
+sdLow <- sdLow/2
+sdMed <- sdMed/2
+sdHigh <- sdHigh/2
+uhOhList <- c()
+for(i in uIds){
+  subDf <- fullDf[fullDf$subID == i, ]
+  
+  means <- subDf %>%
+  dplyr::group_by(propTChoice) %>%
+  dplyr::summarise(mean = mean(choiceProp, na.rm=TRUE))
+  
+  if(means$mean[means$propTChoice==1] > (meanLow + sdLow) | means$mean[means$propTChoice==1] < (meanLow - sdLow) | means$mean[means$propTChoice==2] > (meanMed + sdMed) | means$mean[means$propTChoice==2] < (meanMed - sdMed) | means$mean[means$propTChoice==3] > (meanHigh + sdHigh) | means$mean[means$propTChoice==3] < (meanHigh - sdHigh) ) {
+    uhOhList <- c(uhOhList, i)
+  }
+}
+```
+
+```{r}
+setdiff(unique(fullDf$subID), unique(mergedRawr$subID))
+setdiff(unique(mergedRawr$subID), unique(fullDf$subID))
+
+length((unique(fullDf$subID)))
+length((unique(mergedRawr$subID)))
+
+# no discrepancy between what is in behavioral data and what is in consent data, good
+setdiff(unique(fullDf$subID), rawIntro$subID)
+# people that probably started consent and didn't finish. there's a lot but that's ok
+setdiff(rawIntro$subID, unique(fullDf$subID))
+# yeah if you compare to the subject IDs who even have some data, it's far more
+setdiff(rawIntro$subID, unique(mergedRaw$participant))
+# IDs that exist for post-task questions but not task... There's a decent amount but those were the ones removed
+extraPostRelativeToClean <- setdiff(rawQs$subID, unique(fullDf$subID))
+extraPostRelativeToClean
+# IDs that exist for post-task questions but not task... Only the odd "", which I'm not sure why that exists
+extraPostRelativeToOrig <- setdiff(rawQs$subID, unique(mergedRaw$participant))
+extraPostRelativeToOrig
+
+# IDs that exist for task (ucleaned) but not post-task Qs
+extraOrigRelativeToPost <- setdiff(unique(mergedRaw$participant), rawQs$subID)
+extraOrigRelativeToPost
+# 3 participants have task data but cannot locate post-task questions
+```
+
+```{r}
+#rawQs <- subset(rawQs, Off6_1 > 35)
+indDiff <- subset(rawQs, Off7 == 1 | Off7 == 2)
+#test <- subset(indDiff, Off6_1 > (mean(indDiff$Off6_1,na.rm=T) - sd(indDiff$Off6_1,na.rm=T)) )
+indDiff <- merge(indDiff, rawIntro, by = "subID", all.x = T)
+indDiff <- subset(indDiff, Polit > 3 & Party == 2 | is.na(Party) | is.na(Polit))
+believeIds <- unique(indDiff$subID)
+
+rawIntro <- rawIntro[rawIntro$subID %in% believeIds | rawIntro$subID %in% extraOrigRelativeToPost,]
+mergedRawr <- mergedRawr[mergedRawr$subID %in% believeIds | mergedRawr$subID %in% extraOrigRelativeToPost,]
+fullDf <- fullDf[fullDf$subID %in% believeIds | fullDf$subID %in% extraOrigRelativeToPost,]
+
+introRepeats <- rawIntro$subID[duplicated(rawIntro$subID)]
+Q_Repeats <- indDiff$subID[duplicated(indDiff$subID)]
+
+rawIntro <- rawIntro[!rev(duplicated(rev(rawIntro$subID))),]
+indDiff <- indDiff[!rev(duplicated(rev(indDiff$subID))),]
+
+setdiff(rawIntro$subID, indDiff$subID)
+setdiff(indDiff$subID, rawIntro$subID)
+length(unique(fullDf$subID))
+length(unique(mergedRawr$subID))
+
+#indDiff <- merge(indDiff, rawIntro, by = "subID", all.x = T, all.y = T)
+```
+
+Self-Esteem
+```{r}
+# Reverse code Rosenberg Self-Esteem items
+SErevcols = c("RSE.2", "RSE.5", "RSE.6", "RSE.8", "RSE.9")
+indDiff[ ,SErevcols] = 5 - indDiff[ ,SErevcols]
+ind1 <- grep("RSE.1", colnames(indDiff))
+ind1<-min(ind1)
+ind2<- grep("RSE.10", colnames(indDiff))
+ind2<-max(ind2)
+# Compute scores for Rosenberg Self-Esteem
+indDiff$SE = rowMeans(indDiff[, ind1:ind2], na.rm = TRUE)
+
+psych::alpha(indDiff[ind1:ind2])
+```
+
+```{r}
+# Reverse code Need for Cog items
+NFCrevcols = c("NFC.6_3", "NFC.6_4")
+indDiff[ ,NFCrevcols] = 8 - indDiff[ ,NFCrevcols]
+ind1 <- grep("NFC.6_1", colnames(indDiff))
+ind1<-min(ind1)
+ind2<- grep("NFC.6_6", colnames(indDiff))
+ind2<-max(ind2)
+# Compute scores for Need for Cog
+indDiff$NFC = rowMeans(indDiff[, ind1:ind2], na.rm = TRUE)
+
+psych::alpha(indDiff[ind1:ind2])
+```
+
+```{r}
+# Reverse code Need for Cog items
+#ENTrevcols = c("Ent2", "Ent3", "Ent6", "Ent7")
+ENTrevcols = c("Ent3", "Ent4", "Ent5", "Ent6")
+indDiff[ ,ENTrevcols] = 11 - indDiff[ ,ENTrevcols]
+ind1 <- grep("Ent1", colnames(indDiff))
+ind1<-min(ind1)
+ind2<- grep("Ent9", colnames(indDiff))
+ind2<-max(ind2)
+# Compute scores for Need for Cog
+indDiff$ENT = rowMeans(indDiff[, ind1:ind2], na.rm = TRUE)
+
+ind1<-grep("Ent1",colnames(indDiff))
+ind2<-grep("Ent9",colnames(indDiff))
+psych::alpha(indDiff[ind1:ind2])
+
+#psych::alpha(indDiff[c("Ent1", "Ent4", "Ent6", "Ent8", "Ent9")])
+```
+
+```{r}
+attach(indDiff)
+# Reverse code Collective Self-Esteem items (2, 4, 5, 7, 10 ,12, 13, 15)
+CSErevcols = c("CSE2", "CSE4", "CSE5", "CSE7", "CSE10", "CSE12", "CSE13", "CSE15")
+indDiff[ ,CSErevcols] = 8 - indDiff[ ,CSErevcols]
+# Compute score for Membership Self-Esteem
+MemSEcols = c("CSE1", "CSE5", "CSE9", "CSE10")
+indDiff$MemSE = rowMeans(indDiff[, MemSEcols], na.rm = TRUE)
+psych::alpha(indDiff[,MemSEcols])
+# Compute score for Private Collective Self-Esteem
+PrivCSEcols = c("CSE2", "CSE6", "CSE10", "CSE14")
+indDiff$PrivCSE = rowMeans(indDiff[, PrivCSEcols], na.rm = TRUE)
+psych::alpha(indDiff[,PrivCSEcols])
+# Compute score for Public Collective Self-Esteem
+PubCSEcols = c("CSE3", "CSE7", "CSE11", "CSE15")
+indDiff$PubCSE = rowMeans(indDiff[, PubCSEcols], na.rm = TRUE)
+psych::alpha(indDiff[,PubCSEcols])
+# Compute score for Importance to Identity
+IdImpcols = c("CSE4", "CSE8", "CSE12", "CSE16")
+indDiff$IdImp = rowMeans(indDiff[, IdImpcols], na.rm = TRUE)
+psych::alpha(indDiff[,IdImpcols])
+```
+
+```{r}
+ind1<-grep("SGO2_1",colnames(indDiff))
+ind2<-grep("SGO2_7",colnames(indDiff))
+for(i in 1:nrow(indDiff)){
+  SGO <- grep("On", as.matrix(indDiff[i,ind1:ind2]))
+  if(length(SGO)==0){
+    indDiff$SGO[i] <- 0
+  }else{
+    indDiff$SGO[i] <- SGO
+  }
+}
+```
+
+```{r}
+indDiff$affPol <- indDiff$AffPol_Dem - indDiff$AffPol_Rep
+```
+
+```{r}
+indDiff <- indDiff %>% rename(conf = Off6_1, decep = Off7 )
+```
+
+
+```{r}
+setwd(paste0(wd1))
+write.csv(fullDf, "./Competing Motives/Data Analysis/Study3/output/cleanDf.csv", row.names = FALSE)
+write.csv(indDiff, "./Competing Motives/Data Analysis/Study3/output/rawQsmerg.csv", row.names = FALSE)
+```
+
+```{r}
+fulldf <- fullDf
+fulldf$result <- fulldf$choiceProp/100
+fulldf$cong <- ifelse(fulldf$pairCong==2, 1, 2)
+```
+
+```{r message=FALSE, warning=FALSE}
+Idxmat<-cbind(fulldf$IdxLeft, fulldf$IdxRight)
+fulldf$IdxChoose <- Idxmat[cbind(seq_along(fulldf$choice), fulldf$choice)]
+
+uIds<-unique(fulldf$subID)
+
+fulldf$SV_L <- NA
+fulldf$SV_R <- NA
+fulldf$SV2_L <- NA
+fulldf$SV2_R <- NA
+fulldf$simL <- NA
+fulldf$simR <- NA
+LIDX <- grep("IdxLeft", colnames(fulldf))
+RIDX <- grep("IdxRight", colnames(fulldf))
+LVid <- grep("SV_L", colnames(fulldf))
+RVid <- grep("SV_R", colnames(fulldf))
+LVid2 <- grep("SV2_L", colnames(fulldf))
+RVid2 <- grep("SV2_R", colnames(fulldf))
+Lsid <- grep("simL", colnames(fulldf))
+Rsid <- grep("simR", colnames(fulldf))
+fulldf <- fulldf[!is.na(fulldf$traitChoice),]
+
+for(k in 1:2){
+  
+  if(k==1){
+    Vid = LVid
+    Vid2 = LVid2
+    Sid <- Lsid
+    SideId <- LIDX
+  }else if(k==2){
+    Vid = RVid
+    Vid2 = RVid2
+    Sid <- Rsid
+    SideId <- RIDX
+  }
+  
+  for(i in uIds){
+    
+    subDf <- subset(fulldf, subID==i)
+    for(n in 1:nrow(subDf)){
+      
+      V_S <- NA
+      V_S2 <- NA
+      ind <- subDf[n, SideId]
+      prevs <- subDf$IdxChoose[1:(n-1)]
+      
+      
+      indCP <- ind
+      indCN <- ind-148
+      prevsN <- prevs[which(prevs>148)] - 148
+      prevsP <- prevs[which(prevs<149)]
+      if(ind<149 & sum(prevs<149) > 0){
+        curSimP <- similarity.dice(posGraph)[indCP,prevsP]
+        
+        prevFeed <- subDf$result[1:(n-1)]
+        prevFeedP2 <- prevFeed[which(prevs<149)]
+        prevFeedN2 <- prevFeed[which(prevs>148)]
+
+        V_S = sum(curSimP * prevFeedP2) / sum(curSimP)
+        
+        curSimN <- rep(0, length(prevFeedN2))
+      }
+
+      if(ind>148 & sum(prevs>148) > 0 ){
+        curSimN <- similarity.dice(negGraph)[indCN,prevsN]
+
+        
+        prevFeed <- subDf$result[1:(n-1)]
+        prevFeedP2 <- prevFeed[which(prevs<149)]
+        prevFeedN2 <- prevFeed[which(prevs>148)]
+        V_S = sum(curSimN * prevFeedN2) / sum(curSimN)
+        
+        curSimP <- rep(0, length(prevFeedP2))
+      }
+      
+      
+      if( all(prevs>148) & ind < 149){
+        V_S2 = 0
+      }else if( all(prevs<149) == 1 & ind > 148){
+        V_S2 = 0
+      }else if(sum(prevs<149) == 0){
+        V_S2 = sum(sum(curSimN * prevFeedN2)) / sum(c(prevFeedN2)) 
+        curSim = c(curSimN)
+      }else if(sum(prevs>148) == 0){
+        V_S2 = sum(sum(curSimP * prevFeedP2)) / sum(c(prevFeedP2)) 
+        curSim = c(curSimP)
+      }else if(sum(prevs>148) > 0 & sum(prevs<149) > 0){
+        V_S2 = sum(c(sum(curSimP * prevFeedP2), sum(curSimN * prevFeedN2))) / sum(c(prevFeedP2, prevFeedN2)) 
+        curSim = c(curSimP,curSimN)
+      }else{
+        V_S2 = 0
+      }
+      
+      if((n-1)==0){
+        V_S=.50
+        V_S2=0
+      }
+      
+      if(is.na(V_S)){
+        V_S=.50
+      }
+
+      if(is.na(V_S2)){
+        V_S2=0
+      }
+      
+      fulldf[fulldf$subID == i & fulldf$trialTotal==subDf$trialTotal[n], Vid] <- V_S
+      fulldf[fulldf$subID == i & fulldf$trialTotal==subDf$trialTotal[n], Vid2] <- V_S2
+      fulldf[fulldf$subID == i & fulldf$trialTotal==subDf$trialTotal[n], Sid] <- mean(curSim)
+    }
+    
+  }
+  
+}
+
+Simmat<-cbind(fulldf$simL, fulldf$simR)
+fulldf$Simchoose <-Simmat[cbind(seq_along(fulldf$choice), fulldf$choice)]
+
+```
+
+```{r}
+paramsD <- read.csv("/Volumes/GoogleDrive/My Drive/Volumes/Research Project/Competing Motives/Data Analysis/Study3/Analysis/Study 3 Params/sim2CM_RBparamsD.csv")
+
+  set.seed(132)
+  uIds <- unique(paramsD$subID) # Extract unique subject IDs from dataset
+  fulldf <- fulldf[order(fulldf$subID, fulldf$trialTotal),] # Sort by trials for trial-by-trial learning
+  fulldf <- fulldf[!is.na(fulldf$choice),]
+  x = c('trial', 'n', 'RPE', 'CSV', 'LSV', 'RSV', 'CVM', 'LVM', 'RVM', 'CValueB', 'LValueB', 'RValueB',  'AP' , 'lAP', 'rAP')
+
+  core<-detectCores()
+  cl <- parallel::makeCluster(core-2, setup_strategy = "sequential")
+  setDefaultCluster(cl=cl)
+  registerDoParallel(cl)
+  clusterExport(cl, list("SimCM_RB"))
+  clusterExport(cl, list("paramsD"))
+  clusterExport(cl, list("x"))
+  clusterExport(cl, list("fulldf"))
+  
+result<-foreach(i=uIds, .combine = rbind.data.frame, .packages = c("compiler", "optimx")) %dopar% {
+  output <- as.data.frame(matrix(ncol = length(x) ))
+  names(output) <- x
+  subDf <- subset(fulldf, subID == i) # Subset participant data
+  # trialN, sideChoice, Left, Right, rew, DL, DR, simL, simR, param
+  mat <- SimCM_RB(subDf$trialTotal, subDf$choice, subDf$result, subDf$desirLeft/7, subDf$desirRight/7, subDf$SV2_L, subDf$SV2_R, 
+                     c( 
+                       # mean(paramsD$Temp[paramsD$subID!=i]),
+                       # mean(paramsD$mix[paramsD$subID!=i]),
+                       # mean(paramsD$rb[paramsD$subID!=i])
+                       paramsD$Temp[paramsD$subID==i],
+                       paramsD$mix[paramsD$subID==i],
+                       paramsD$rb[paramsD$subID==i]
+                       
+                       ) )
+  output <- cbind(mat, data.frame(subID = i) )
+  output
+    
+}
+stopCluster(cl)  
+LOO_Df <- result
+
+LOO_Df_D <- LOO_Df %>% dplyr::rename(trialTotal = trial,
+                  RLcount = n,
+                  predError = RPE)
+```
+
+```{r}
+paramsR <- read.csv("/Volumes/GoogleDrive/My Drive/Volumes/Research Project/Competing Motives/Data Analysis/Study3/Analysis/Study 3 Params/sim2CM_RBparamsR.csv")
+
+
+  set.seed(132)
+  uIds <- unique(paramsR$subID) # Extract unique subject IDs from dataset
+  fulldf <- fulldf[order(fulldf$subID, fulldf$trialTotal),] # Sort by trials for trial-by-trial learning
+  fulldf <- fulldf[!is.na(fulldf$choice),]
+  x = c('trial', 'n', 'RPE', 'CSV', 'LSV', 'RSV', 'CVM', 'LVM', 'RVM', 'CValueB', 'LValueB', 'RValueB',  'AP' , 'lAP', 'rAP')
+
+  core<-detectCores()
+  cl <- parallel::makeCluster(core-2, setup_strategy = "sequential")
+  setDefaultCluster(cl=cl)
+  registerDoParallel(cl)
+  clusterExport(cl, list("SimCM_RB"))
+  clusterExport(cl, list("paramsR"))
+  clusterExport(cl, list("x"))
+  clusterExport(cl, list("fulldf"))
+  
+result<-foreach(i=uIds, .combine = rbind.data.frame, .packages = c("compiler", "optimx")) %dopar% {
+  output <- as.data.frame(matrix(ncol = length(x) ))
+  names(output) <- x
+  subDf <- subset(fulldf, subID == i) # Subset participant data
+  # trialN, sideChoice, Left, Right, rew, DL, DR, simL, simR, param
+  mat <- SimCM_RB(subDf$trialTotal, subDf$choice, subDf$result, subDf$desirLeft/7, subDf$desirRight/7, subDf$SV2_L, subDf$SV2_R, 
+                     c( 
+                       # mean(paramsR$Temp[paramsR$subID!=i]),
+                       # mean(paramsR$mix[paramsR$subID!=i]),
+                       # mean(paramsR$rb[paramsR$subID!=i])
+                       paramsR$Temp[paramsR$subID==i],
+                       paramsR$mix[paramsR$subID==i],
+                       paramsR$rb[paramsR$subID==i]
+                       
+                       ) )
+  output <- cbind(mat, data.frame(subID = i) )
+  output
+    
+}
+stopCluster(cl)  
+LOO_Df <- result
+
+LOO_Df_R <- LOO_Df %>% dplyr::rename(trialTotal = trial,
+                  RLcount = n,
+                  predError = RPE)
+```
+
+
+```{r}
+params <- rbind(paramsD, paramsR)
+LOO_Df <- rbind(LOO_Df_R, LOO_Df_D)
+
+fullTD <- merge(fulldf, LOO_Df, by = c("subID", "trialTotal"))
+fullTD <- fullTD[order(fullTD$subID, fullTD$trialTotal),]
+fullTD <- fullTD[!duplicated(fullTD[c("subID","trialTotal")]), ]
+fullTD$chooseDes <- as.factor(fullTD$chooseDes)
+```
+
+```{r}
+fullTD$greatSV <- NA
+fullTD$greatSV <- ifelse(fullTD$LSV > fullTD$RSV, 1, ifelse(fullTD$RSV > fullTD$LSV, 2, 3))
+fullTD$compMotC <- NA
+fullTD$compMotC <- ifelse(fullTD$greatSV == fullTD$greatDes, 1, ifelse(fullTD$greatSV != fullTD$greatDes, 2, 3))
+
+Idxmat<-cbind(fulldf$IdxLeft, fulldf$IdxRight)
+fulldf$IdxChoose <- Idxmat[cbind(seq_along(fulldf$choice), fulldf$choice)]
+
+SVmat <- cbind(fullTD$LSV, fullTD$RSV)
+svAP <- t(apply(SVmat, 1, softmax))
+colnames(svAP) <- c("LSV.AP", "RSV.AP")
+fullTD <- cbind(fullTD, svAP)
+fullTD$SV.AP <- svAP[cbind(seq_along(fullTD$choice), fullTD$choice)]
+
+entropy <- function(probs){
+  output <- ( -sum(probs * log(probs)) )
+  return(output)
+}
+
+
+# function for how much conflict in motivation
+relEntropy <- function(mat){
+  LD<-mat[1]
+  RD<-mat[2]
+  LV<-mat[3]
+  RV<-mat[4]
+  maxEnt <- entropy(c(.5,.5))
+  output <- (entropy(c(LD,RD)) / maxEnt)/ (entropy(c(LV,RV)) / maxEnt)
+  return(output)
+}
+
+fullTD$relEnt <- NA
+relEntMat <- cbind(fullTD$leftDesAP, fullTD$rightDesAP, fullTD$LSV.AP, fullTD$RSV.AP)
+fullTD$relEnt <- apply(relEntMat, 1, relEntropy )
+```
+
+# Running Average
+
+```{r}
+fullTD$choice <- as.numeric(fullTD$choice)
+fullTD <- fullTD[order(fullTD$subID, fullTD$trialTotal),]
+fullTD$runAveL <- NA
+fullTD$runAveR <- NA
+fullTD$runAveC <- NA
+fullTD$runSumL <- NA
+fullTD$runSumR <- NA
+fullTD$runSumC <- NA
+fullTD$runSDL <- NA
+fullTD$runSDR <- NA
+fullTD$runSDC <- NA
+fullTD$runChoiceL <- NA
+fullTD$runChoiceR <- NA
+fullTD$runChoiceC <- NA
+fullTD$runPropL <- NA
+fullTD$runPropR <- NA
+fullTD$runPropC <- NA
+
+LIDX <- grep("runAveL", colnames(fullTD))-1
+LIDX2 <- grep("runSumL", colnames(fullTD))-1
+LIDX3 <- grep("runSDL", colnames(fullTD))-1
+LIDX4 <- grep("runChoiceL", colnames(fullTD))-1
+LIDX5 <- grep("runPropL", colnames(fullTD))-1
+output<-matrix(ncol=2,nrow=nrow(fullTD))
+uIds <- unique(fullTD$subID)
+for(u in uIds){
+  subDf <- subset(fullTD, subID==u)
+  cues <- cbind(subDf$leftCue, subDf$rightCue)
+  for(c in 1:2){
+    
+    for(i in 1:nrow(subDf)){
+      
+    #curCue <- subDf$choiceCue[i]
+    #curNotCue <- which(c(subDf$leftCue[i], subDf$rightCue[i])!=curCue) 
+    curCue <- cues[i,c]
+    curTrial <- subDf$trialTotal[i]
+    subDf2 <- subDf[subDf$choiceCue==curCue,]
+    subDf3 <- subDf2[subDf2$trialTotal < curTrial, ]
+    
+    if(nrow(subDf3)!=0){
+      runAve <- mean(subDf3$result[1:nrow(subDf3)], na.rm=T)
+      runSum <- sum(subDf3$result[1:nrow(subDf3)], na.rm=T)
+      runSD <- sd(subDf3$result[1:nrow(subDf3)], na.rm=T)
+      runChoices <- nrow(subDf3)
+      runProps <- nrow(subDf3)/nrow(subDf[subDf$trialTotal < curTrial & (subDf$leftCue == curCue | subDf$rightCue == curCue),])
+      #runChoices <- sum(subDf3$choiceCue==subDf3$choiceCue[nrow(subDf3)])
+    }else{
+      # runAve <- 50
+      runAve <- .50
+      runSum <- 0
+      runSD <- 0
+      runProps <- 0
+      runChos <- 0
+    }
+    
+    fullTD[fullTD$subID == u & fullTD$trialTotal==curTrial, (LIDX+c)] <- runAve
+    fullTD[fullTD$subID == u & fullTD$trialTotal==curTrial, (LIDX2+c)] <- runSum
+    fullTD[fullTD$subID == u & fullTD$trialTotal==curTrial, (LIDX3+c)] <- runSD
+    fullTD[fullTD$subID == u & fullTD$trialTotal==curTrial, (LIDX4+c)] <- runChoices
+    fullTD[fullTD$subID == u & fullTD$trialTotal==curTrial, (LIDX5+c)] <- runProps
+    
+    }
+  }
+}
+
+
+aveMat <- cbind(fullTD$runAveL, fullTD$runAveR)
+fullTD$runAveC <- aveMat[cbind(seq_along(fullTD$choice), fullTD$choice)]
+sumMat <- cbind(fullTD$runSumL, fullTD$runSumR)
+fullTD$runSumC <- sumMat[cbind(seq_along(fullTD$choice), fullTD$choice)]
+sdMat <- cbind(fullTD$runSDL, fullTD$runSDR)
+fullTD$runSDC <- sdMat[cbind(seq_along(fullTD$choice), fullTD$choice)]
+ChoiceMat <- cbind(fullTD$runChoiceL, fullTD$runChoiceR)
+fullTD$runChoiceC <- ChoiceMat[cbind(seq_along(fullTD$choice), fullTD$choice)]
+PropMat <- cbind(fullTD$runPropL, fullTD$runPropR)
+fullTD$runPropC <- PropMat[cbind(seq_along(fullTD$choice), fullTD$choice)]
+
+fullTD$runAveRLDiff <- fullTD$runAveR - fullTD$runAveL
+fullTD$runSumRLDiff <- fullTD$runSumR - fullTD$runSumL
+
+
+aveAP <- t(apply(aveMat, 1, softmax))
+colnames(aveAP) <- c("aveL.AP", "aveR.AP")
+fullTD <- cbind(fullTD, aveAP)
+fullTD$aveC.AP <- aveAP[cbind(seq_along(fullTD$choice), fullTD$choice)]
+for(i in 1:nrow(fullTD)){
+  if(fullTD$greatDes[i]>2){
+    fullTD$aveD.AP[i] <- NA
+  }else{
+    fullTD$aveD.AP[i] <- aveAP[i,fullTD$greatDes[i]]
+  }
+}
+#fullTD$aveD.AP <- aveAP[cbind(seq_along(fullTD$greatDes), fullTD$greatDes)]
+
+# Group Average for Most Desirable
+# fullTD$aveCD.AP <- NA
+# greatDes12 <- fullTD$greatDes
+# greatDes12[fullTD$greatDes==3] <- NA
+# fullTD$aveCD.AP <- aveAP[cbind(seq_along(greatDes12), greatDes12)]
+
+uc <- unique(fullTD$choice)
+unchosen <- function(input){
+  if(input==1){
+    output<-2
+  }else if(input==2){
+    output<-1
+  }else{
+    output<-NA
+  }
+  return(output)
+}
+nochoice <- unlist(lapply(fullTD$choice, function(x) unchosen(x)))
+fullTD$runAveUC <- aveMat[cbind(seq_along(nochoice), nochoice)]
+
+fullTD$runAveCDiff <- fullTD$runAveC - fullTD$runAveUC
+fullTD$outRminL <- fullTD$outRight - fullTD$outLeft
+fullTD$inRminL <- fullTD$inRight - fullTD$inLeft
+fullTD$aveRminL <- fullTD$runAveR - fullTD$runAveL
+fullTD$sumRminL <- fullTD$runSumR - fullTD$runSumL
+fullTD$choiceRminL  <- fullTD$runChoiceR - fullTD$runChoiceL
+fullTD$propRminL  <- fullTD$runPropR - fullTD$runPropL
+
+# choose trait with higher average?
+fullTD$greatAveC <- as.numeric(apply(aveMat, 1, max)==fullTD$runAveC)
+
+fullTD$desRminL <- fullTD$ZdesirRight - fullTD$ZdesirLeft
+fullTD$rightCueYes = fullTD$rightCue >= fullTD$leftCue
+fullTD$rightPropTYes = ifelse(fullTD$rightPropT == fullTD$leftPropT, 1, ifelse(fullTD$rightPropT > fullTD$leftPropT, 2, 3))
+```
+
+# Fixed Values
+
+```{r}
+fullTD$rightPV <- as.integer(fullTD$rightPropT)
+fullTD$leftPV <- as.integer(fullTD$leftPropT)
+fullTD$choosePV <- as.integer(fullTD$propTChoice)
+fullTD$rightPV[fullTD$rightPV==1] <- .32
+fullTD$rightPV[fullTD$rightPV==2] <- .50
+fullTD$rightPV[fullTD$rightPV==3] <- .68
+fullTD$leftPV[fullTD$leftPV==1] <- .32
+fullTD$leftPV[fullTD$leftPV==2] <- .50
+fullTD$leftPV[fullTD$leftPV==3] <- .68
+fullTD$choosePV[fullTD$choosePV==1] <- .32
+fullTD$choosePV[fullTD$choosePV==2] <- .50
+fullTD$choosePV[fullTD$choosePV==3] <- .68
+fullTD$PVRminL <- as.numeric(fullTD$rightPV) - as.numeric(fullTD$leftPV)
+```
+
+```{r}
+fullTD$greatAve <- NA
+fullTD$greatAve <- ifelse(fullTD$runAveL > fullTD$runAveR, 1, ifelse(fullTD$runAveR > fullTD$runAveL, 2, 3))
+fullTD$compMotC2 <- NA
+fullTD$compMotC2 <- ifelse(fullTD$greatAve == fullTD$greatDes, 1, ifelse(fullTD$greatAve != fullTD$greatDes, 2, 3))
+
+fullTD$greatSum <- NA
+fullTD$greatSum <- ifelse(fullTD$runSumL > fullTD$runSumR, 1, ifelse(fullTD$runSumR > fullTD$runSumL, 2, 3))
+fullTD$compMotC3 <- NA
+fullTD$compMotC3 <- ifelse(fullTD$greatSum == fullTD$greatDes, 1, ifelse(fullTD$greatSum != fullTD$greatDes, 2, 3))
+```
+
+```{r}
+psych::phi(table(fullTD$compMotC, fullTD$compMotC2))
+```
+
+
+Gershman, 2015 (Adapt to distribution of rewards)
+
+```{r}
+# split into 7 intervals
+bins<-cut(fullTD$RVB - fullTD$LVB, 7)
+binDf <- fullTD
+binDf$bins <- bins
+# what are the proportion of left/right choices at each interval
+output <- tapply(fullTD$choice, bins, function(x) prop.table(table(x)))
+# for pos
+outputP <- tapply(fullTD$choice[fullTD$valChoice==2], bins[fullTD$valChoice==2], function(x) prop.table(table(x)))
+# for neg
+outputN <- tapply(fullTD$choice[fullTD$valChoice==1], bins[fullTD$valChoice==1], function(x) prop.table(table(x)))
+
+# extract cut intervals as numeric
+intervals <- read.table(text = gsub("[^.0-9]", " ", levels(bins)), col.names = c("lower", "upper"))
+# extract only even elements for right choice, put in dataframe
+output<-data.frame(bins = c(-intervals[1:4,1],intervals[5:7,2]),
+           empirical = as.numeric(unlist(output)[c(FALSE,TRUE)]))
+
+plot(output)
+```
+
+```{r}
+
+fullTD$desEnt <- apply(cbind(fullTD$leftDesAP, fullTD$rightDesAP), 1, entropy)
+fullTD$apEnt <- apply(cbind(fullTD$rAP, fullTD$lAP), 1, entropy)
+fullTD$aveEnt <- apply(cbind(fullTD$aveL.AP, fullTD$aveR.AP), 1, entropy)
+fullTD$svEnt <- apply(cbind(fullTD$RSV.AP, fullTD$LSV.AP), 1, entropy)
+```
+
+```{r}
+fullTD <- merge(fullTD, indDiff[c("subID", "Party", "Polit", "conf", "decep", "SStatus", "SocClass", "SE","NFC", "ENT", "MemSE", "PrivCSE", "PubCSE", "IdImp", "SGO", "affPol")], by = "subID", all.x = T )
+```
+
+```{r}
+setwd("~/Google Drive/Volumes/")
+fullTD <- fullTD[order(fullTD$subID, fullTD$trialTotal),]
+write.csv(fullTD, "./Research Project/Competing Motives/Data Analysis/Study3/output/fullDf.csv", row.names = FALSE)
+```
+
+```{r}
+mergedRawt <- mergedRawt[!is.na(mergedRawt$traitChoice),]
+uIds <- unique(mergedRawt$subID)
+
+mat <- matrix(ncol = 5, nrow = (6 * length(unique(mergedRawt$subID))))
+uIds <- unique(mergedRawt$subID)
+k <- 1
+
+for(i in uIds){
+  for(j in 1:6){
+    propTypeLeft <- unique(mergedRawt$leftPropT[mergedRawt$leftClust == j & mergedRawt$subID == i])
+    propTypeRight <- unique(mergedRawt$rightPropT[mergedRawt$rightClust == j & mergedRawt$subID == i])
+    propTypeChoice <- unique(mergedRawt$propTChoice[mergedRawt$clustChoice == j & mergedRawt$subID == i])
+    if(length(propTypeChoice)==0){
+      propTypeChoice <- NA
+    }
+    mat[k, ] <- c(i, j, propTypeLeft, propTypeRight, propTypeChoice)
+    k <- k + 1
+  }
+}
+all(mat[1:nrow(mat), 3] == mat[1:nrow(mat), 4])
+all(mat[1:nrow(mat), 4] == mat[1:nrow(mat), 5])
+all(mat[1:nrow(mat), 3] == mat[1:nrow(mat), 5])
+
+mat[is.na(mat[,5]),]
+
+mat <- mat[1:nrow(mat), 1:3]
+matN <- c("subID", "clustType", "propT")
+clustPropTDf <- as.data.frame(mat)
+names(clustPropTDf) <- matN
+setwd("~/Google Drive/Volumes/")
+write.csv(clustPropTDf, "./Research Project/Competing Motives/Data Analysis/Study3/output/clustDf.csv", row.names = FALSE)
+```
+
+
+```{r}
+setwd("~/Google Drive/Volumes/")
+clusterList <- read.csv("./Research Project/Competing Motives/Data Analysis/Study2/input/ClusterLists.csv")
+names(mergedRawr)[colnames(mergedRawr)=="selfTrait"] <- "trait"
+names(mergedRawr)[colnames(mergedRawr)=="trials_2.thisTrialN"] <- "trialTotal"
+mergedRawr <- merge(mergedRawr, clusterList[c("trait", "clustType")], by = "trait")
+cleanRe <- merge(mergedRawr, clustPropTDf, by = c("subID", "clustType") )
+```
+
+```{r}
+cleanRe$cueType <- NA
+for (i in 1:nrow(cleanRe)) {
+
+if (cleanRe$propT[i] == 1 & cleanRe$valence[i] == 1){
+    cleanRe$cueType[i] <- 1
+}
+if (cleanRe$propT[i] == 2 & cleanRe$valence[i] == 1){
+    cleanRe$cueType[i] <- 2
+}
+if (cleanRe$propT[i] == 3 & cleanRe$valence[i] == 1){
+    cleanRe$cueType[i] <- 3
+}
+if (cleanRe$propT[i] == 1 & cleanRe$valence[i] == 2){
+    cleanRe$cueType[i] <- 4
+}
+if (cleanRe$propT[i] == 2 & cleanRe$valence[i] == 2){
+    cleanRe$cueType[i] <- 5
+}
+if (cleanRe$propT[i] == 3 & cleanRe$valence[i] == 2){
+    cleanRe$cueType[i] <- 6
+}
+}
+```
+
+```{r}
+uIds <- unique(cleanRe$subID)
+unseenFull <- data.frame()
+for(i in uIds){
+  subDfle <- subset(fullTD, subID ==  i)
+  subDfre <- subset(cleanRe, subID == i)
+  traitLe <- subDfle$traitChoice
+  traitRe <- subDfre$trait
+  unseen <- data.frame(subID = i, trait = setdiff(traitRe, traitLe), unseen = 1)
+  unseenFull <- rbind(unseenFull, unseen)
+  
+}
+cleanRe <- merge(cleanRe, unseenFull, by = c("subID", "trait"), all.x = TRUE)
+cleanRe$unseen[is.na(cleanRe$unseen)] <- 0
+```
+
+
+```{r}
+fullTD <- fullTD[order(fullTD$subID, fullTD$trialTotal),]
+uIds <- unique(fullTD$subID)
+uCue <- unique(fullTD$choiceCue)
+cleanRe$aveCueF <- NA
+cleanRe$aveCueTF <- NA
+cleanRe$aveSD <- NA
+cleanRe$sumCueF <- NA
+
+for(i in uIds){
+  subDf <- fullTD[fullTD$subID==i,]
+  for(j in uCue){
+    cueDf <- subDf[subDf$choiceCue==j,]
+    aveCue <- mean(cueDf$result, na.rm = T)
+    aveSD <- sd(cueDf$result, na.rm = T)
+    sumCue <- sum(cueDf$result, na.rm = T)
+    sumChoices <- nrow(cueDf)
+    propChoices <- nrow(cueDf)/nrow(subDf[(subDf$leftCue == j | subDf$rightCue == j),])
+    aveCueStat <- mean(cueDf$result, na.rm=T)/(var(cueDf$result, na.rm=T)/sqrt( length(cueDf$result) ) )
+    
+    cleanRe$aveCueF[cleanRe$subID == i & cleanRe$cueType==j] <- aveCue
+    cleanRe$aveSD[cleanRe$subID == i & cleanRe$cueType==j] <- aveSD
+    cleanRe$aveCueTF[cleanRe$subID == i & cleanRe$cueType==j] <- aveCueStat
+    cleanRe$sumCueF[cleanRe$subID == i & cleanRe$cueType==j] <- sumCue
+    cleanRe$choiceCueF[cleanRe$subID == i & cleanRe$cueType==j] <- sumChoices
+    cleanRe$propCueF[cleanRe$subID == i & cleanRe$cueType==j] <- propChoices
+    
+  }
+}
+```
+
+```{r}
+setwd("~/Google Drive/Volumes/")
+allCombCents[colnames(allCombCents)=="valence"] <- NULL
+cleanRe <- merge(cleanRe, allCombCents, by = "trait")
+```
+
+
+```{r}
+fullTD <- fullTD[order(fullTD$subID, fullTD$trialTotal),]
+uIds <- unique(fullTD$subID)
+cleanRe$SV_F <- NA
+cleanRe$valEstF <- NA
+cleanRe$Sim <- NA
+for(i in uIds){
+  subDf <- fullTD[fullTD$subID==i,]
+  # weiNum <- grep("w1", colnames(subDf))
+  # c <- weiNum - 1
+  rCue <- unique(cleanRe$Idx[cleanRe$subID==i])
+  uCue <- unique(subDf$IdxChoose)
+  
+  for(j in rCue){
+      
+      V_S <- NA
+      V_S2 <- NA
+      prevs <- uCue
+      ind <- j
+      
+      indCP <- ind
+      indCN <- ind-148
+      prevsN <- prevs[which(prevs>148)] - 148
+      prevsP <- prevs[which(prevs<149)]
+      if(ind<149 & sum(prevs<149) > 0){
+        curSimP <- similarity.dice(posGraph)[indCP,prevsP]
+        
+        prevFeed <- subDf$result
+        prevFeedP2 <- prevFeed[which(prevs<149)]
+        prevFeedN2 <- prevFeed[which(prevs>148)]
+
+        V_S = sum(curSimP * prevFeedP2) / sum(curSimP)
+        
+        curSimN <- rep(0, length(prevFeedN2))
+      }
+
+      if(ind>148 & sum(prevs>148) > 0 ){
+        curSimN <- similarity.dice(negGraph)[indCN,prevsN]
+
+        
+        prevFeed <- subDf$result
+        prevFeedP2 <- prevFeed[which(prevs<149)]
+        prevFeedN2 <- prevFeed[which(prevs>148)]
+        V_S = sum(curSimN * prevFeedN2) / sum(curSimN)
+        
+        curSimP <- rep(0, length(prevFeedP2))
+      }
+      
+      if( all(prevs>148) & ind < 149){
+        V_S2 = 0
+      }else if( all(prevs<149) == 1 & ind > 148){
+        V_S2 = 0
+      }else if(sum(prevs<149) == 0){
+        V_S2 = sum(sum(curSimN * prevFeedN2)) / sum(c(prevFeedN2)) 
+        curSim = c(curSimN)
+      }else if(sum(prevs>148) == 0){
+        V_S2 = sum(sum(curSimP * prevFeedP2)) / sum(c(prevFeedP2)) 
+        curSim = c(curSimP)
+      }else if(sum(prevs>148) > 0 & sum(prevs<149) > 0){
+        V_S2 = sum(c(sum(curSimP * prevFeedP2), sum(curSimN * prevFeedN2))) / sum(c(prevFeedP2, prevFeedN2)) 
+        curSim = c(curSimP,curSimN)
+      }else{
+        V_S2 = 0
+      }
+      
+      if(is.na(V_S2)){
+        break
+      }
+      
+      cleanRe$Sim[fullDf$subID == i & fullDf$Idx==j] <- mean(curSim)
+      cleanRe$SV_F[cleanRe$subID == i & cleanRe$Idx==j] <- V_S2
+      cleanRe$valEstF[cleanRe$subID == i & cleanRe$Idx==j] <- V_S2 * params$mix[params$subID==i] + (allCombCents$desirability[allCombCents$Idx==j]/7) * (1 - params$mix[params$subID==i])
+      cleanRe$Sim[cleanRe$subID == i & cleanRe$Idx==j] <- mean(curSim, na.rm=T)
+      
+  }
+}
+```
+
+```{r}
+fullDf <- merge(cleanRe, indDiff[c("subID", "Party", "Polit", "conf", "decep", "SStatus", "SocClass", "SE","NFC", "ENT", "MemSE", "PrivCSE", "PubCSE", "IdImp", "SGO", "affPol")], by = "subID", all.x = T )
+```
+
+
+```{r}
+setwd("~/Google Drive/Volumes/")
+fullDf <- fullDf[order(fullDf$subID, fullDf$trialTotal),]
+write.csv(fullDf, "./Research Project/Competing Motives/Data Analysis/Study3/output/reEvalDf.csv", row.names = FALSE)
+```
+
+```{r}
+uSubs <- fullTD[fullTD$subID == unique(fullTD$subID),]
+prop.table(table(uSubs$condition))
+uSubs<-fullTD[!duplicated(fullTD$subID),]
+```
+
+
+
+
+
+

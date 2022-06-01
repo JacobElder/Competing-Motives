@@ -1047,7 +1047,7 @@ for(u in uIds){
       runSum <- 0
       runSD <- 0
       runProps <- 0
-      runChos <- 0
+      runChoices <- 0
     }
     
     fullTD[fullTD$subID == u & fullTD$trialTotal==curTrial, (LIDX+c)] <- runAve
@@ -1087,7 +1087,11 @@ for(i in 1:nrow(fullTD)){
     fullTD$aveD.AP[i] <- aveAP[i,fullTD$greatDes[i]]
   }
 }
-#fullTD$aveD.AP <- aveAP[cbind(seq_along(fullTD$greatDes), fullTD$greatDes)]
+
+sumAP <- t(apply(sumMat, 1, softmax))
+colnames(sumAP) <- c("aveL.AP", "aveR.AP")
+fullTD <- cbind(fullTD, sumAP)
+fullTD$sumC.AP <- sumAP[cbind(seq_along(fullTD$choice), fullTD$choice)]
 
 # Group Average for Most Desirable
 # fullTD$aveCD.AP <- NA
@@ -1184,11 +1188,12 @@ Gershman, 2015 (Adapt to distribution of rewards)
 ```
 
 ```{r}
-
 fullTD$desEnt <- apply(cbind(fullTD$leftDesAP, fullTD$rightDesAP), 1, entropy)
 fullTD$apEnt <- apply(cbind(fullTD$rAP, fullTD$lAP), 1, entropy)
 fullTD$aveEnt <- apply(cbind(fullTD$aveL.AP, fullTD$aveR.AP), 1, entropy)
 fullTD$svEnt <- apply(cbind(fullTD$RSV.AP, fullTD$LSV.AP), 1, entropy)
+fullTD$sumEnt <- apply(cbind(fullTD$runSumL, fullTD$runSumR), 1, function(x) entropy(softmax(x)))
+fullTD$simEnt <- apply(cbind(fullTD$simL, fullTD$simR), 1, function(x) entropy(softmax(x)))
 ```
 
 ```{r}

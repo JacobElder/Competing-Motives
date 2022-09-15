@@ -1,0 +1,72 @@
+---
+title: "Demographics"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+# Check that it doesn't match any non-letter
+letters_only <- function(x) !grepl("[^A-Za-z]", x)
+
+# Check that it doesn't match any non-number
+numbers_only <- function(x) !grepl("\\D", x)
+```
+
+
+```{r}
+setwd("~/Google Drive/Volumes/Research Project/Competing Motives/Data Analysis/")
+fullTD1 <- read.csv("fullDf.csv")
+```
+
+```{r}
+setwd("~/Google Drive/Volumes/Research Project/Competing Motives/Data Analysis/Study2/output/")
+fullTD2 <- read.csv("fullDf.csv")
+```
+
+```{r}
+setwd("~/Google Drive/Volumes/Research Project/Competing Motives/Data Analysis/Study3/output/")
+fullTD3 <- read.csv("fullDf.csv")
+```
+
+```{r}
+raw1 <- read.csv("/Volumes/GoogleDrive/My Drive/Volumes/Research Project/Competing Motives/Data Analysis/input/Raw Qualtrics/reducedChoiceText1.csv")
+raw2 <- read.csv("/Volumes/GoogleDrive/My Drive/Volumes/Research Project/Competing Motives/Data Analysis/input/Raw Qualtrics/reducedChoiceText2.csv")
+raw3 <- read.csv("/Volumes/GoogleDrive/My Drive/Volumes/Research Project/Competing Motives/Data Analysis/input/Raw Qualtrics/reducedChoiceText3.csv")
+```
+
+```{r}
+raw1 <- raw1[raw1$subID %in% unique(fullTD1$subID),]
+raw2 <- raw2[raw2$id %in% unique(fullTD2$subID),]
+raw3 <- raw3[raw3$workerId %in% unique(fullTD3$subID),]
+```
+
+```{r}
+psych::describe(as.numeric(raw1$D1)) # Age
+prop.table(table(raw1$D2))
+```
+
+```{r}
+raw2$Age[raw2$Age=="209"] <- NA
+
+psych::describe(as.numeric(raw2$Age[numbers_only(raw2$Age)])) # Age
+prop.table(table(raw2$Gender))
+```
+
+```{r}
+
+psych::describe(as.numeric(raw3$Age[numbers_only(raw3$Age)])) # Age
+prop.table(table(raw3$Gender))
+prop.table(table(raw3$Race))
+unique(raw3$Race)
+raw3 <- raw3 %>%
+  mutate(Race = replace(Race, str_detect(raw3$Race, ","), "Other")
+         )
+raw3$Race <- na_if(raw3$Race, "")
+
+prop.table(table(raw3$Race))
+sum (prop.table(table(raw3$D3))[c(4,5,6,7)] )
+```
+

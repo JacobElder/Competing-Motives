@@ -295,8 +295,38 @@ ranked <-rbind(APranked,DESranked,FWSranked)
 
 ggplot(APranked, aes(x=as.factor(rank), y=nRight)) + geom_point()
 
-ggplot(ranked, aes(x=as.factor(rank), y=nRight, color=type)) + geom_point() +jtools::theme_apa()
+ggplot(ranked, aes(x=as.factor(rank), y=nRight, color=type, group=type)) + 
+  geom_line() + 
+  geom_point() + 
+  jtools::theme_apa() + 
+  scale_x_discrete(name="Model Probability", labels = paste0(seq(10,100,by=10),"%")) + 
+  scale_y_continuous(name="Choice Probability", breaks=seq(.10,1,by=.10), labels = paste0(seq(10,100,by=10),"%") )
 ```
+
+```{r}
+APbins <- fullTD %>% mutate(rank=ntile(fullTD$AP,10))
+DESbins <- fullTD %>% mutate(rank=ntile(fullTD$desAP,10))
+FWSbins <- fullTD %>% mutate(rank=ntile(fullTD$SV.AP,10))
+
+APranked <- APbins %>% group_by(compMotC3, rank) %>% summarise(nRight = mean(chooseDes), nLeft = 1-mean(chooseDes))
+APranked$type <- "AP"
+DESranked <- DESbins %>% group_by(compMotC3, rank) %>% summarise(nRight = mean(chooseDes), nLeft = 1-mean(chooseDes))
+DESranked$type <- "DES"
+FWSranked <- FWSbins %>% group_by(compMotC3, rank) %>% summarise(nRight = mean(chooseDes), nLeft = 1-mean(chooseDes))
+FWSranked$type <- "FWS"
+ranked <-rbind(APranked,DESranked,FWSranked)
+
+ggplot(APranked, aes(x=as.factor(rank), y=nRight)) + geom_point()
+
+ggplot(ranked, aes(x=as.factor(rank), y=nRight, color=type, group=type)) + 
+  geom_line() + 
+  geom_point() + 
+  facet_wrap( ~ compMotC3) +
+  jtools::theme_apa() + 
+  scale_x_discrete(name="Model Probability", labels = paste0(seq(10,100,by=10),"%")) + 
+  scale_y_continuous(name="Choice Probability", breaks=seq(.10,1,by=.10), labels = paste0(seq(10,100,by=10),"%") )
+```
+
 
 # Descriptives of Computational Parameters
 
@@ -436,7 +466,7 @@ tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
 ### Summed
 
 ```{r}
-m <- glmer( choice ~ scale(propRminL) + scale(runSumRLDiff) + scale(trialTotal) + ( scale(trialTotal)  + scale(runSumRLDiff) + scale(propRminL) | subID), data = fullTD1, family = binomial, control = glmerControl(optimizer = "bobyqa",
+m <- glmer( choice ~ scale(runSumRLDiff) + scale(trialTotal) + ( scale(trialTotal)  + scale(runSumRLDiff) + scale(propRminL) | subID), data = fullTD1, family = binomial, control = glmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)),
     nAGQ = 1)
 summary(m)
@@ -447,7 +477,7 @@ Sum1 <- ggpredict(m, c("runSumRLDiff")) %>% plot(show.title=F) + xlab("Summed Gr
 #### Moderated by incongruent pair
 
 ```{r}
-m <- glmer( choice ~ scale(propRminL) + scale(trialTotal) + scale(runSumRLDiff)*incong + (scale(propRminL) + scale(trialTotal) + scale(runSumRLDiff) + incong | subID), data = fullTD1, family = binomial, control = glmerControl(optimizer = "bobyqa",
+m <- glmer( choice ~ scale(trialTotal) + scale(runSumRLDiff)*incong + (scale(trialTotal) + scale(runSumRLDiff) + incong | subID), data = fullTD1, family = binomial, control = glmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)),
     nAGQ = 1)
   summary(m)
@@ -469,7 +499,7 @@ tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
 ### Summed
 
 ```{r}
-m <- glmer( as.factor(choice) ~ scale(propRminL) + scale(runSumRLDiff) + scale(trialTotal) + ( scale(trialTotal) + scale(runSumRLDiff) + scale(propRminL) | subID), data = fullTD2, family = binomial, control = glmerControl(optimizer = "bobyqa",
+m <- glmer( as.factor(choice) ~ scale(runSumRLDiff) + scale(trialTotal) + ( scale(trialTotal) + scale(runSumRLDiff) | subID), data = fullTD2, family = binomial, control = glmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)),
     nAGQ = 1)
 summary(m)
@@ -480,7 +510,7 @@ Sum2 <- ggpredict(m, c("runSumRLDiff")) %>% plot(show.title=F) + xlab("Summed Gr
 #### Moderated by incongruent pair
 
 ```{r}
-m <- glmer( as.factor(choice) ~ scale(propRminL) + scale(runSumRLDiff)*incong + scale(trialTotal) + ( scale(propRminL) + scale(trialTotal) + scale(runSumRLDiff) + incong | subID), data = fullTD2, family = binomial, control = glmerControl(optimizer = "bobyqa",
+m <- glmer( as.factor(choice) ~ scale(runSumRLDiff)*incong + scale(trialTotal) + ( scale(trialTotal) + scale(runSumRLDiff) + incong | subID), data = fullTD2, family = binomial, control = glmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)),
     nAGQ = 1)
   summary(m)
@@ -512,7 +542,7 @@ summary(m)
 ### Summed
 
 ```{r}
-m <- glmer(  as.factor(choice) ~ scale(propRminL) + scale(runSumRLDiff) + scale(trialTotal) + ( scale(trialTotal) + scale(runSumRLDiff) + scale(propRminL) | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
+m <- glmer(  as.factor(choice) ~ scale(runSumRLDiff) + scale(trialTotal) + ( scale(trialTotal) + scale(runSumRLDiff) + scale(propRminL) | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)),
     nAGQ = 1)
 summary(m)
@@ -523,7 +553,7 @@ Sum3 <- ggpredict(m, c("runSumRLDiff")) %>% plot(show.title=F) + xlab("Summed Gr
 #### Moderated by incongruent pair
 
 ```{r}
-m <- glmer( as.factor(choice) ~ scale(propRminL) + scale(runSumRLDiff)*incong + scale(trialTotal) + ( scale(propRminL) + scale(trialTotal) + scale(runSumRLDiff) + incong | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
+m <- glmer( as.factor(choice) ~ scale(runSumRLDiff)*incong + scale(trialTotal) + ( scale(trialTotal) + scale(runSumRLDiff) + incong | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)),
     nAGQ = 1)
 summary(m)
@@ -534,7 +564,7 @@ ggpredict(m, c("runSumRLDiff","incong")) %>% plot()
 #### Between Conditions
 
 ```{r}
-m <- glmer(  as.factor(choice) ~ scale(propRminL) + scale(runSumRLDiff)*condition + scale(trialTotal) + ( scale(trialTotal) + scale(runSumRLDiff) + scale(propRminL) | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
+m <- glmer(  as.factor(choice) ~ scale(runSumRLDiff)*condition + scale(trialTotal) + ( scale(trialTotal) + scale(runSumRLDiff) + scale(propRminL) | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)),
     nAGQ = 1)
 summary(m)
@@ -1037,7 +1067,26 @@ m <- lmer(scale(selfResp) ~ scale(SV_F) + scale(desirability) +
 summary(m)
 tidy(m,conf.int=TRUE,effects="fixed")
 ggpredict(m, c("SV_F")) %>% plot()
-r2beta(m)
+```
+
+### Cumulative Norms, Similarity, and Desirability
+
+```{r}
+m <- lmer( scale(selfResp) ~ scale(sumCueF) + scale(Sim) + scale(desirability) +
+    ( scale(sumCueF) + scale(Sim) + scale(desirability) | subID) + (1 | trait), data = reValDf1, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+```
+
+### Cumulative Norms and Desirability
+
+```{r}
+m <- lmer( scale(selfResp) ~ scale(sumCueF) + scale(desirability) +
+    ( scale(sumCueF)  + scale(desirability) | subID) + (1 | trait), data = reValDf1, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
 ```
 
 ## Study 2
@@ -1057,11 +1106,31 @@ ModelRePlot2 <- ggpredict(m, c("valEstF")) %>% plot(show.title=F) + xlab("Model 
 
 ```{r}
 m <- lmer(scale(selfResp) ~ scale(SV_F) + scale(desirability) +
-    ( SV_F + desirability | subID) + (1 | trait), data = reValDf2, control = lmerControl(optimizer = "bobyqa",
+    ( scale(SV_F) + scale(desirability) | subID) + (1 | trait), data = reValDf2, control = lmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)))
 summary(m)
 tidy(m,conf.int=TRUE,effects="fixed")
 ggpredict(m, c("SV_F")) %>% plot()
+```
+
+### Cumulative Norms, Similarity, and Desirability
+
+```{r}
+m <- lmer( scale(selfResp) ~ scale(sumCueF) + scale(Sim) + scale(desirability) +
+    ( scale(sumCueF) + scale(Sim) + scale(desirability) | subID) + (1 | trait), data = reValDf2, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+```
+
+### Cumulative Norms and Desirability
+
+```{r}
+m <- lmer( scale(selfResp) ~ scale(sumCueF) + scale(desirability) +
+    ( scale(sumCueF)  + scale(desirability) | subID) + (1 | trait), data = reValDf2, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
 ```
 
 ## Study 3
@@ -1112,7 +1181,7 @@ ggpredict(m, c("SV_F")) %>% plot()
 
 ```{r}
 m <- lmer( scale(selfResp) ~ scale(sumCueF) + scale(Sim) + scale(desirability) +
-    ( scale(SV_F) + scale(Sim) + scale(desirability) | subID) + (1 | trait), data = reValDf3, control = lmerControl(optimizer = "bobyqa",
+    ( scale(sumCueF) + scale(Sim) + scale(desirability) | subID) + (1 | trait), data = reValDf3, control = lmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)))
 summary(m)
 tidy(m,conf.int=TRUE,effects="fixed")
@@ -1123,6 +1192,16 @@ tidy(m,conf.int=TRUE,effects="fixed")
 ```{r}
 m <- lmer( scale(selfResp) ~ scale(sumCueF) * condition + scale(Sim) + scale(desirability) +
     ( scale(SV_F) + scale(Sim) + scale(desirability) | subID) + (1 | trait), data = reValDf3, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+```
+
+### Cumulative Norms and Desirability
+
+```{r}
+m <- lmer( scale(selfResp) ~ scale(sumCueF) + scale(desirability) +
+    ( scale(sumCueF) + scale(desirability) | subID) + (1 | trait), data = reValDf3, control = lmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)))
 summary(m)
 tidy(m,conf.int=TRUE,effects="fixed")

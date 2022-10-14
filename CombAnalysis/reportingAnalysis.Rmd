@@ -38,6 +38,7 @@ library(r2glmm)
 library(ggpubr)
 library(grid)
 library(broom.mixed)
+library(tidyverse)
 logit2prob <- function(logit){
   odds <- exp(logit)
   prob <- odds / (1 + odds)
@@ -279,11 +280,13 @@ congDf <- subset(fullTD, pair == "PP" | pair == "NN")
 ```
 
 ```{r}
-library(tidyverse)
-
-APbins <- fullTD %>% mutate(rank=ntile(fullTD$rAP,10))
-DESbins <- fullTD %>% mutate(rank=ntile(fullTD$rightDesAP,10))
-FWSbins <- fullTD %>% mutate(rank=ntile(fullTD$RSV.AP,10))
+psychCurve <- function(df, condition=F){
+  
+  APbins <- df %>% mutate(rank=ntile(df$rAP,100))
+DESbins <- df %>% mutate(rank=ntile(df$rightDesAP,100))
+FWSbins <- df %>% mutate(rank=ntile(df$RSV.AP,100))
+  
+  if(condition==F){
 
 APranked <- APbins %>% group_by(rank) %>% summarise(nRight = mean(choice-1), nLeft = 1-mean(choice-1))
 APranked$type <- "AP"
@@ -293,38 +296,94 @@ FWSranked <- FWSbins %>% group_by(rank) %>% summarise(nRight = mean(choice-1), n
 FWSranked$type <- "FWS"
 ranked <-rbind(APranked,DESranked,FWSranked)
 
-ggplot(APranked, aes(x=as.factor(rank), y=nRight)) + geom_point()
+xlabels <- sort(unique(ranked$rank))
+xlabels <- paste0(xlabels,"%")
+xlabels[c(2:9,11:19,21:29,31:39,41:49,51:59,61:69,71:79,81:89,91:99)] <- ""
 
-ggplot(ranked, aes(x=as.factor(rank), y=nRight, color=type, group=type)) + 
-  geom_line() + 
-  geom_point() + 
+psychometriCurve <- ggplot(ranked, aes(x=as.factor(rank), y=nRight, color=type, group=type)) + 
+  geom_smooth(se=F) + 
   jtools::theme_apa() + 
-  scale_x_discrete(name="Model Probability", labels = paste0(seq(10,100,by=10),"%")) + 
-  scale_y_continuous(name="Choice Probability", breaks=seq(.10,1,by=.10), labels = paste0(seq(10,100,by=10),"%") )
-```
+  scale_x_discrete(name="Model Probability", labels = xlabels) + 
+  scale_y_continuous(name="Choice Probability", breaks=seq(.10,1,by=.10), labels = paste0(seq(10,100,by=10),"%")) +
+  theme(axis.ticks.x = element_blank(), axis.ticks.y=element_blank()) +
+  scale_color_manual(labels = c("Mixture", "Desirability","Similarity-to-Group"), values = wes_palette("Darjeeling1"))
+psychometriCurve
 
-```{r}
-APbins <- fullTD %>% mutate(rank=ntile(fullTD$AP,10))
-DESbins <- fullTD %>% mutate(rank=ntile(fullTD$desAP,10))
-FWSbins <- fullTD %>% mutate(rank=ntile(fullTD$SV.AP,10))
-
-APranked <- APbins %>% group_by(compMotC3, rank) %>% summarise(nRight = mean(chooseDes), nLeft = 1-mean(chooseDes))
+  }else if(condition==T){
+  
+APranked <- APbins %>% group_by(condition, rank) %>% summarise(nRight = mean(choice-1), nLeft = 1-mean(choice-1))
 APranked$type <- "AP"
-DESranked <- DESbins %>% group_by(compMotC3, rank) %>% summarise(nRight = mean(chooseDes), nLeft = 1-mean(chooseDes))
+DESranked <- DESbins %>% group_by(condition, rank) %>% summarise(nRight = mean(choice-1), nLeft = 1-mean(choice-1))
 DESranked$type <- "DES"
-FWSranked <- FWSbins %>% group_by(compMotC3, rank) %>% summarise(nRight = mean(chooseDes), nLeft = 1-mean(chooseDes))
+FWSranked <- FWSbins %>% group_by(condition, rank) %>% summarise(nRight = mean(choice-1), nLeft = 1-mean(choice-1))
 FWSranked$type <- "FWS"
 ranked <-rbind(APranked,DESranked,FWSranked)
 
-ggplot(APranked, aes(x=as.factor(rank), y=nRight)) + geom_point()
+xlabels <- sort(unique(ranked$rank))
+xlabels <- paste0(xlabels,"%")
+xlabels[c(2:9,11:19,21:29,31:39,41:49,51:59,61:69,71:79,81:89,91:99)] <- ""
 
-ggplot(ranked, aes(x=as.factor(rank), y=nRight, color=type, group=type)) + 
-  geom_line() + 
-  geom_point() + 
-  facet_wrap( ~ compMotC3) +
+psychometriCurve <- ggplot(ranked, aes(x=as.factor(rank), y=nRight, color=type, group=type)) + 
+  facet_wrap( ~ condition ) +
+  geom_smooth(se=F) + 
   jtools::theme_apa() + 
-  scale_x_discrete(name="Model Probability", labels = paste0(seq(10,100,by=10),"%")) + 
-  scale_y_continuous(name="Choice Probability", breaks=seq(.10,1,by=.10), labels = paste0(seq(10,100,by=10),"%") )
+  scale_x_discrete(name="Model Probability", labels = xlabels) + 
+  scale_y_continuous(name="Choice Probability", breaks=seq(.10,1,by=.10), labels = paste0(seq(10,100,by=10),"%")) +
+  theme(axis.ticks.x = element_blank(), axis.ticks.y=element_blank()) +
+  scale_color_manual(labels = c("Mixture", "Desirability","Similarity-to-Group"), values = wes_palette("Darjeeling1")) +
+  theme(legend.position="top", plot.margin = margin(11, 11, 10, 10), panel.spacing = unit(1.1, "lines"))
+psychometriCurve
+    
+}
+  
+}
+
+modelTD <- fullTD1
+modelTD$choice <- as.numeric(modelTD$choice)
+
+PSC1 <- psychCurve(modelTD)
+
+modelTD <- fullTD2
+modelTD$choice <- as.numeric(modelTD$choice)
+
+PSC2 <- psychCurve(modelTD)
+
+modelTD <- fullTD3
+modelTD$choice <- as.numeric(modelTD$choice)
+
+PSC3 <- psychCurve(modelTD, condition=T)
+
+ggpubr::ggarrange(ggpubr::ggarrange(PSC1,PSC2, ncol=2,nrow=1, common.legend = T), PSC3, nrow=2, ncol=1, legend="none")
+
+modelTD <- fullTD
+modelTD$choice <- as.numeric(modelTD$choice)
+
+PSCall <- psychCurve(modelTD, condition=T)
+ggsave("~/Desktop/test.png", PSCall, width = 8, height=5)
+```
+
+```{r}
+desDF <- fullTD %>% 
+  group_by(condition, subID, compMotC3) %>% 
+  summarize(desChoice = mean(chooseDes), desAP = mean(desAP))
+
+desDF <- fullTD %>% 
+  group_by(condition, subID, incong, compMotC3) %>% 
+  summarize(desChoice = mean(chooseDes), desAP = mean(desAP))
+
+desCompMot <- ggplot(desDF, aes(compMotC3, desChoice, color=incong)) + 
+  ggdist::stat_halfeye(adjust = .5, width = .7, .width = 0, justification = -.2, point_colour = NA) + 
+  geom_boxplot(width = .2, outlier.shape = NA) + 
+  geom_jitter(width = .05, alpha = .3) + labs(y="Proportion of Desirable Choices",x="Trial Type") + jtools::theme_apa() +
+  facet_wrap(~condition) + 
+  scale_color_manual(labels = c("Congruent", "Incongruent"), values = wes_palette("Chevalier1"))
+ggsave("~/Desktop/test2.png", desCompMot, width = 8, height=5)
+
+# ggplot(desDF, aes(compMotC3, desAP, color=incong)) + 
+#   ggdist::stat_halfeye(adjust = .5, width = .7, .width = 0, justification = -.2, point_colour = NA) + 
+#   geom_boxplot(width = .2, outlier.shape = NA) + 
+#   geom_jitter(width = .05, alpha = .3) + labs(y="Proportion of Desirable Choices",x="Trial Type") + jtools::theme_apa() +
+#   facet_wrap(~condition)
 ```
 
 
@@ -564,11 +623,12 @@ ggpredict(m, c("runSumRLDiff","incong")) %>% plot()
 #### Between Conditions
 
 ```{r}
-m <- glmer(  as.factor(choice) ~ scale(runSumRLDiff)*condition + scale(trialTotal) + ( scale(trialTotal) + scale(runSumRLDiff) + scale(propRminL) | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
+m <- glmer(  as.factor(choice) ~ scale(runSumRLDiff)*condition + scale(trialTotal) + ( scale(trialTotal) + scale(runSumRLDiff) | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)),
     nAGQ = 1)
 summary(m)
 tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
+ggpredict(m, c("runSumRLDiff","condition")) %>% plot()
 ```
 
 ## Combined Plot
@@ -843,7 +903,7 @@ r2beta(m,data=fullTD3)
 #### Between Conditions
 
 ```{r}
-m <- glmer( as.factor(choice) ~ scale(runSumRLDiff) * condition + scale(SimRminL) * condition + scale(rightDesAP) + ( scale(runSumRLDiff) + scale(SimRminL) + scale(rightDesAP) | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
+m <- glmer( as.factor(choice) ~ scale(runSumRLDiff) * condition + scale(SimRminL) + condition + scale(rightDesAP) + ( scale(runSumRLDiff) + scale(SimRminL) + scale(rightDesAP) | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)),
     nAGQ = 1)
 summary(m)
@@ -1201,6 +1261,16 @@ tidy(m,conf.int=TRUE,effects="fixed")
 
 ```{r}
 m <- lmer( scale(selfResp) ~ scale(sumCueF) + scale(desirability) +
+    ( scale(sumCueF) + scale(desirability) | subID) + (1 | trait), data = reValDf3, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+```
+
+#### Between Conditions
+
+```{r}
+m <- lmer( scale(selfResp) ~ scale(sumCueF) * condition + scale(desirability) +
     ( scale(sumCueF) + scale(desirability) | subID) + (1 | trait), data = reValDf3, control = lmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)))
 summary(m)

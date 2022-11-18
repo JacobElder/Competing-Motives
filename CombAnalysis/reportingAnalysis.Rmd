@@ -39,12 +39,18 @@ library(ggpubr)
 library(grid)
 library(broom.mixed)
 library(tidyverse)
+library(wesanderson)
 logit2prob <- function(logit){
   odds <- exp(logit)
   prob <- odds / (1 + odds)
   return(prob)
 }
 ```
+
+```{r}
+plotDir <- "/Volumes/GoogleDrive/My Drive/Volumes/Research Project/Competing Motives/Plots/"
+```
+
 
 ```{r, include=FALSE}
 setwd("~/Google Drive/Volumes/Research Project/Competing Motives/Data Analysis/")
@@ -82,6 +88,9 @@ reValDf1$propT <- as.factor(reValDf1$propT)
 contrasts(reValDf1$propT) = contr.poly(levels(reValDf1$propT))
 
 fullTD1$runSumRLDiff <- fullTD1$runSumR - fullTD1$runSumL
+
+fullTD1$trialTotal.Z <- scale(fullTD1$trialTotal)
+fullTD1$runSumRLDiff.Z <- scale(fullTD1$runSumRLDiff)
 ```
 
 ```{r,include=FALSE}
@@ -118,6 +127,9 @@ levels(reValDf2$propT) <- c("Low","Med","High")
 contrasts(reValDf2$propT) = contr.poly(levels(reValDf2$propT))
 
 fullTD2$runSumRLDiff <- fullTD2$runSumR - fullTD2$runSumL
+
+fullTD2$runSumRLDiff <- scale(fullTD2$runSumRLDiff)
+fullTD2$trialTotal.Z <- scale(fullTD2$trialTotal)
 ```
 
 ```{r,include=FALSE}
@@ -152,6 +164,9 @@ levels(reValDf3$propT) <- c("Low","Med","High")
 contrasts(reValDf3$propT) = contr.poly(levels(reValDf3$propT))
 
 fullTD3$runSumRLDiff <- fullTD3$runSumR - fullTD3$runSumL
+
+fullTD3$runSumRLDiff.Z <- scale(fullTD3$runSumRLDiff)
+fullTD3$trialTotal.Z <- scale(fullTD3$trialTotal)
 ```
 
 ```{r,include=FALSE}
@@ -323,14 +338,19 @@ xlabels <- sort(unique(ranked$rank))
 xlabels <- paste0(xlabels,"%")
 xlabels[c(2:9,11:19,21:29,31:39,41:49,51:59,61:69,71:79,81:89,91:99)] <- ""
 
-psychometriCurve <- ggplot(ranked, aes(x=as.factor(rank), y=nRight, color=type, group=type)) + 
-  facet_wrap( ~ condition ) +
-  geom_smooth(se=F) + 
+
+ranked$condition_f = factor(ranked$condition, levels=c('Latino','Asian','Democrat','Republican'))
+ranked$condition_f = recode_factor(ranked$condition_f, 'Latino' = "Latino (Study 1)", 'Asian' = "Asian (Study 2)", 'Democrat' = "Democrat (Study 3)", 'Republican' = "Republican (Study 3)")
+
+psychometriCurve <- ggplot(ranked, aes(x=as.factor(rank), y=nRight, color=type, group=type, linetype = type)) + 
+  facet_wrap( ~ condition_f ) +
+  geom_smooth(se=F , aes(linetype=type)) + 
   jtools::theme_apa() + 
   scale_x_discrete(name="Model Probability", labels = xlabels) + 
   scale_y_continuous(name="Choice Probability", breaks=seq(.10,1,by=.10), labels = paste0(seq(10,100,by=10),"%")) +
   theme(axis.ticks.x = element_blank(), axis.ticks.y=element_blank()) +
   scale_color_manual(labels = c("Mixture", "Desirability","Similarity-to-Group"), values = wes_palette("Darjeeling1")) +
+  scale_linetype_discrete(labels = c("Mixture", "Desirability","Similarity-to-Group")) +
   theme(legend.position="top", plot.margin = margin(11, 11, 10, 10), panel.spacing = unit(1.1, "lines"))
 psychometriCurve
     
@@ -359,7 +379,8 @@ modelTD <- fullTD
 modelTD$choice <- as.numeric(modelTD$choice)
 
 PSCall <- psychCurve(modelTD, condition=T)
-ggsave("~/Desktop/test.png", PSCall, width = 8, height=5)
+ggsave(paste0(plotDir, "PSC_comb.tiff"), PSCall, width = 8, height=5)
+ggsave(paste0(plotDir, "PSC_comb.png"), PSCall, width = 8, height=5)
 ```
 
 ```{r}
@@ -371,19 +392,19 @@ desDF <- fullTD %>%
   group_by(condition, subID, incong, compMotC3) %>% 
   summarize(desChoice = mean(chooseDes), desAP = mean(desAP))
 
-desCompMot <- ggplot(desDF, aes(compMotC3, desChoice, color=incong)) + 
-  ggdist::stat_halfeye(adjust = .5, width = .7, .width = 0, justification = -.2, point_colour = NA) + 
+desDF$condition_f = factor(desDF$condition, levels=c('Latino','Asian','Democrat','Republican'))
+desDF$condition_f = recode_factor(desDF$condition_f, 'Latino' = "Latino (Study 1)", 'Asian' = "Asian (Study 2)", 'Democrat' = "Democrat (Study 3)", 'Republican' = "Republican (Study 3)")
+
+desCompMot <- ggplot(desDF, aes(compMotC3, desChoice, color=incong, fill = incong)) + 
+  ggdist::stat_halfeye(adjust = .5, width = .7, .width = 0, justification = -.2, point_colour = NA, alpha = .3) +
   geom_boxplot(width = .2, outlier.shape = NA) + 
   geom_jitter(width = .05, alpha = .3) + labs(y="Proportion of Desirable Choices",x="Trial Type") + jtools::theme_apa() +
-  facet_wrap(~condition) + 
-  scale_color_manual(labels = c("Congruent", "Incongruent"), values = wes_palette("Chevalier1"))
-ggsave("~/Desktop/test2.png", desCompMot, width = 8, height=5)
+  facet_wrap(~condition_f) + 
+  scale_color_manual(labels = c("Congruent", "Incongruent"), values = wes_palette("Chevalier1")) +
+  scale_fill_manual(labels = c("Congruent", "Incongruent"), values = wes_palette("Chevalier1"))
 
-# ggplot(desDF, aes(compMotC3, desAP, color=incong)) + 
-#   ggdist::stat_halfeye(adjust = .5, width = .7, .width = 0, justification = -.2, point_colour = NA) + 
-#   geom_boxplot(width = .2, outlier.shape = NA) + 
-#   geom_jitter(width = .05, alpha = .3) + labs(y="Proportion of Desirable Choices",x="Trial Type") + jtools::theme_apa() +
-#   facet_wrap(~condition)
+ggsave(paste0(plotDir, "compMot_comb.tiff"), desCompMot, width = 8, height=5)
+ggsave(paste0(plotDir, "compMot_comb.png"), desCompMot, width = 8, height=5)
 ```
 
 
@@ -515,7 +536,7 @@ tidy(m,conf.int=TRUE,effects="fixed")
 ### Average
 
 ```{r}
-m <- glmer( choice ~ scale(trialTotal) + scale(runAveRLDiff) + ( scale(trialTotal) + scale(runAveRLDiff) | subID)  + (1 | traitLeft) + (1 |traitRight), data = fullTD1, family = binomial, control = glmerControl(optimizer = "bobyqa",
+m <- glmer( choice ~ scale(trialTotal) + scale(runAveRLDiff) + ( scale(trialTotal) + scale(runAveRLDiff) | subID), data = fullTD1, family = binomial, control = glmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)),
     nAGQ = 1)
 summary(m)
@@ -536,12 +557,13 @@ Sum1 <- ggpredict(m, c("runSumRLDiff")) %>% plot(show.title=F) + xlab("Summed Gr
 #### Moderated by incongruent pair
 
 ```{r}
-m <- glmer( choice ~ scale(trialTotal) + scale(runSumRLDiff)*incong + (scale(trialTotal) + scale(runSumRLDiff) + incong | subID), data = fullTD1, family = binomial, control = glmerControl(optimizer = "bobyqa",
+m <- glmer( choice ~ runSumRLDiff.Z*incong + (runSumRLDiff.Z + incong | subID), data = fullTD1, family = binomial, control = glmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)),
     nAGQ = 1)
   summary(m)
   tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
-  ggpredict(m, c("runSumRLDiff","incong")) %>% plot()
+  ggpredict(m, c("runSumRLDiff.Z","incong")) %>% plot()
+  r2beta(m)
 ```
 ## Study 2
 
@@ -569,12 +591,13 @@ Sum2 <- ggpredict(m, c("runSumRLDiff")) %>% plot(show.title=F) + xlab("Summed Gr
 #### Moderated by incongruent pair
 
 ```{r}
-m <- glmer( as.factor(choice) ~ scale(runSumRLDiff)*incong + scale(trialTotal) + ( scale(trialTotal) + scale(runSumRLDiff) + incong | subID), data = fullTD2, family = binomial, control = glmerControl(optimizer = "bobyqa",
+m <- glmer( choice ~ runSumRLDiff.Z*incong + ( runSumRLDiff.Z + incong | subID), data = fullTD2, family = binomial, control = glmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)),
     nAGQ = 1)
   summary(m)
   tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
-  ggpredict(m, c("runSumRLDiff","incong")) %>% plot()
+  ggpredict(m, c("runSumRLDiff.Z","incong")) %>% plot()
+  r2beta(m)
 ```
 
 ## Study 3
@@ -612,12 +635,14 @@ Sum3 <- ggpredict(m, c("runSumRLDiff")) %>% plot(show.title=F) + xlab("Summed Gr
 #### Moderated by incongruent pair
 
 ```{r}
-m <- glmer( as.factor(choice) ~ scale(runSumRLDiff)*incong + scale(trialTotal) + ( scale(trialTotal) + scale(runSumRLDiff) + incong | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
+fullTD3$choice <- as.factor(fullTD3$choice)
+m <- glmer( choice ~ runSumRLDiff.Z*incong + (  runSumRLDiff.Z + incong | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)),
     nAGQ = 1)
 summary(m)
 tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
-ggpredict(m, c("runSumRLDiff","incong")) %>% plot()
+ggpredict(m, c("runSumRLDiff.Z","incong")) %>% plot()
+r2beta(m)
 ```
 
 #### Between Conditions
@@ -648,15 +673,24 @@ ggsave("~/Documents/UC Riverside/Studies/Competing Motives Study/Manuscript/Figu
 
 ## Study 1
 
+```{r}
+m <- glmer( choice ~ compMotC3 + scale(trialTotal) + ( compMotC3 + scale(trialTotal) | subID), data = incongDf1, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+summary(m)
+```
+
+
 ### For incongruent pairs, categorical choice: Desirable or not
 
 ```{r}
-m <- glmer( chooseDes ~ compMotC3 + scale(trialTotal) + ( compMotC3 + scale(trialTotal) | subID), data = incongDf1, family = binomial, control = glmerControl(optimizer = "bobyqa",
+m <- glmer( chooseDes ~ compMotC3 + trialTotal.Z + ( compMotC3 + trialTotal.Z | subID), data = incongDf1, family = binomial, control = glmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)),
     nAGQ = 1)
 summary(m)
 tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
 ggpredict(m, c("compMotC3")) %>% plot()
+r2beta(m)
 ```
 
 ### For all data, continuous desirability probability
@@ -668,25 +702,39 @@ tidy(m,conf.int=TRUE,effects="fixed")
 APCompMot1 <- ggpredict(m, c("compMotC3")) %>% plot(show.title=F) + xlab("Competing or Aligned Motivations") + ylab("Likelihood of Desirable Choice") + jtools::theme_apa()  
 ```
 
-#### Moderated by Self-Esteem
+
+#### Beta regression
 
 ```{r}
-m <- lmer(scale(sumC.AP) ~ scale(SE) * compMotC3 + ( compMotC3 | subID) + ( 1 | traitLeft) + (1 | traitRight), data = fullTD1)
-summary(m)
-ggpredict(m, c("SE","compMotC3")) %>% plot(show.title=F) + xlab("Self-Esteem") + ylab("Likelihood of Group Normativity") + jtools::theme_apa()
+m <- glmmTMB( desAP ~ compMotC3 + scale(trialTotal) + ( compMotC3 + scale(trialTotal) | subID), data = fullTD1, family = beta_family())
+tidy(m,conf.int=TRUE,effects="fixed")
+APCompMot1 <- ggpredict(m, c("compMotC3")) %>% plot(show.title=F) + xlab("Competing or Aligned Motivations") + ylab("Likelihood of Desirable Choice") + jtools::theme_apa()
 ```
+
+#### Logistic
+
+```{r}
+m <- glmer( chooseDes ~ compMotC3*incong + scale(trialTotal) + ( compMotC3 + scale(trialTotal) | subID), data = fullTD1, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+summary(m)
+tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
+ggpredict(m, c("compMotC3","incong")) %>% plot()
+```
+
 
 ## Study 2
 
 ### For incongruent pairs, categorical choice: Desirable or not
 
 ```{r}
-m <- glmer( chooseDes ~ compMotC3 + scale(trialTotal) + ( compMotC3 + scale(trialTotal) | subID), data = incongDf2, family = binomial, control = glmerControl(optimizer = "bobyqa",
+m <- glmer( chooseDes ~ compMotC3 + trialTotal.Z + ( compMotC3 + trialTotal.Z | subID), data = incongDf2, family = binomial, control = glmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)),
     nAGQ = 1)
 summary(m)
 tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
 ggpredict(m, c("compMotC3")) %>% plot()
+r2beta(m)
 ```
 
 ### For all data, continuous desirability probability
@@ -698,12 +746,23 @@ tidy(m,conf.int=TRUE,effects="fixed")
 APCompMot2 <- ggpredict(m, c("compMotC3")) %>% plot(show.title=F) + xlab("Competing or Aligned Motivations") + ylab("Likelihood of Desirable Choice") + jtools::theme_apa()  
 ```
 
-#### Moderated by Self-Esteem
+#### Beta regression
 
 ```{r}
-m <- lmer(scale(sumC.AP) ~ scale(SE) * compMotC3 + ( compMotC3 | subID) + ( 1 | traitLeft) + (1 | traitRight), data = fullTD2)
+m <- glmmTMB( desAP ~ compMotC3 + scale(trialTotal) + ( compMotC3 + scale(trialTotal) | subID), data = fullTD2, family = beta_family())
+tidy(m,conf.int=TRUE,effects="fixed")
+APCompMot1 <- ggpredict(m, c("compMotC3")) %>% plot(show.title=F) + xlab("Competing or Aligned Motivations") + ylab("Likelihood of Desirable Choice") + jtools::theme_apa()  
+```
+
+#### Logistic
+
+```{r}
+m <- glmer( chooseDes ~ compMotC3*incong + scale(trialTotal) + ( compMotC3 + scale(trialTotal) | subID), data = fullTD2, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
 summary(m)
-ggpredict(m, c("SE","compMotC3")) %>% plot(show.title=F) + xlab("Self-Esteem") + ylab("Likelihood of Group Normativity") + jtools::theme_apa()
+tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
+ggpredict(m, c("compMotC3","incong")) %>% plot()
 ```
 
 ## Study 3
@@ -711,11 +770,52 @@ ggpredict(m, c("SE","compMotC3")) %>% plot(show.title=F) + xlab("Self-Esteem") +
 ### For incongruent pairs, categorical choice: Desirable or not
 
 ```{r}
-m <- glmer( chooseDes ~ compMotC3 + scale(trialTotal) + ( compMotC3 + scale(trialTotal) | subID), data = incongDf3, family = binomial, control = glmerControl(optimizer = "bobyqa",
+m <- glmer( chooseDes ~ compMotC3 + trialTotal.Z + ( compMotC3 + trialTotal.Z | subID), data = incongDf3, family = binomial, control = glmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)),
     nAGQ = 1)
 summary(m)
 tidy(m,conf.int=TRUE,effects="fixed",exponentiate=TRUE)
+r2beta(m)
+```
+
+#### Condition Differences?
+
+```{r}
+m <- glmer( chooseDes ~ compMotC3 * condition + trialTotal.Z + ( compMotC3 + trialTotal.Z | subID), data = incongDf3, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed",exponentiate=TRUE)
+r2beta(m)
+```
+
+
+#### Beta regression
+
+```{r}
+m <- glmmTMB( desAP ~ compMotC3 + scale(trialTotal) + ( compMotC3 + scale(trialTotal) | subID), data = fullTD3, family = beta_family())
+tidy(m,conf.int=TRUE,effects="fixed")
+APCompMot1 <- ggpredict(m, c("compMotC3")) %>% plot(show.title=F) + xlab("Competing or Aligned Motivations") + ylab("Likelihood of Desirable Choice") + jtools::theme_apa()  
+```
+
+#### Between Conditions
+
+```{r}
+m <- glmmTMB( desAP ~ compMotC3*condition + scale(trialTotal) + ( compMotC3 + scale(trialTotal) | subID), data = fullTD3, family = beta_family())
+tidy(m,conf.int=TRUE,effects="fixed")
+APCompMot1 <- ggpredict(m, c("compMotC3")) %>% plot(show.title=F) + xlab("Competing or Aligned Motivations") + ylab("Relative Desirability") + jtools::theme_apa()  
+```
+
+
+#### Logistic
+
+```{r}
+m <- glmer( chooseDes ~ compMotC3*incong + scale(trialTotal) + ( compMotC3 + scale(trialTotal) | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+summary(m)
+tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
+ggpredict(m, c("compMotC3","incong")) %>% plot()
 ```
 
 #### Between Conditions?
@@ -728,18 +828,10 @@ summary(m)
 ggpredict(m, c("compMotC3","condition")) %>% plot()
 ```
 
-#### Moderated by Self-Esteem
-
-```{r}
-m <- lmer(scale(sumC.AP) ~ scale(SE) * compMotC3 * condition + ( compMotC3 | subID) + ( 1 | traitLeft) + (1 | traitRight), data = fullTD3)
-summary(m)
-ggpredict(m, c("SE","compMotC3", "condition")) %>% plot(show.title=F) + xlab("Self-Esteem") + ylab("Likelihood of Group Normativity") + jtools::theme_apa()
-```
-
 ### For all data, continuous desirability probability
 
 ```{r}
-m <- lmer( desAP ~ compMotC3 + scale(trialTotal) + scale(trialTotal) + ( compMotC3 + scale(trialTotal) | subID), data = fullTD3, control = lmerControl(optimizer = "bobyqa",
+m <- lmer( desAP ~ compMotC3 + scale(trialTotal) + ( compMotC3 + scale(trialTotal) | subID), data = fullTD3, control = lmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)))
 summary(m)
 tidy(m,conf.int=TRUE,effects="fixed")
@@ -805,6 +897,17 @@ tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
 r2beta(m,data=fullTD1)
 ```
 
+### Summed Feedback, Averaged Similarity, and Desirability
+
+```{r}
+m <- glmer( as.factor(choice) ~ scale(runAveRLDiff) + scale(SimRminL) + scale(rightDesAP) + ( scale(runSumRLDiff) + scale(SimRminL) + scale(rightDesAP) | subID), data = fullTD1, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+summary(m)
+tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
+r2beta(m,data=fullTD1)
+```
+
 ## Study 2
 
 ### Model Prediction
@@ -834,6 +937,17 @@ r2beta(m,data=fullTD2)
 
 ```{r}
 m <- glmer( as.factor(choice) ~ scale(runSumRLDiff) + scale(SimRminL) + scale(rightDesAP) + ( scale(runSumRLDiff) + scale(SimRminL) + scale(rightDesAP) | subID), data = fullTD2, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+summary(m)
+tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
+r2beta(m,data=fullTD2)
+```
+
+### Average Feedback, Averaged Similarity, and Desirability
+
+```{r}
+m <- glmer( as.factor(choice) ~ scale(runAveRLDiff) + scale(SimRminL) + scale(rightDesAP) + ( scale(runSumRLDiff) + scale(SimRminL) + scale(rightDesAP) | subID), data = fullTD2, family = binomial, control = glmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)),
     nAGQ = 1)
 summary(m)
@@ -907,10 +1021,53 @@ m <- glmer( as.factor(choice) ~ scale(runSumRLDiff) * condition + scale(SimRminL
                                     optCtrl = list(maxfun = 100000)),
     nAGQ = 1)
 summary(m)
-r2beta(m,data=fullTD3)
+data.frame(r2beta(m,data=fullTD3))
 tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
-ggpredict(m, c("runSumRLDiff","condition")) %>% plot()
 ```
+
+##### Plot
+
+```{r}
+m <- glmer( as.factor(choice) ~ runSumRLDiff * condition + SimRminL + condition + rightDesAP + ( runSumRLDiff + SimRminL + rightDesAP | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+p <- ggpredict(m, c("runSumRLDiff","condition"))
+Cum.Cond <-ggplot(p, aes(x, predicted)) +  geom_line(aes(linetype=group, color=group)) + geom_ribbon(aes(ymin=conf.low, ymax=conf.high, fill=group), alpha=0.15) + scale_linetype_discrete(labels = c("Ingroup (Democrat)","Outgroup (Republican)")) + scale_color_manual(labels = c("Ingroup (Democrat)","Outgroup (Republican)"), values = wes_palette("Darjeeling1")) + scale_fill_manual( 
+                      labels=c("Ingroup (Democrat)","Outgroup (Republican)"), values = wes_palette("Darjeeling1")) + theme(
+    legend.position = c(.1, .65),
+    legend.justification = c("left", "bottom"),
+    legend.box.just = "left",
+    legend.margin = margin(6, 6, 6, 6)
+    ) + theme(axis.text=element_text(size=12),
+        axis.title=element_text(size=12,face="bold")) + theme(legend.text = element_text(size=12)) + theme(panel.border = element_rect(colour = "black", fill = NA, size =1)) + theme(legend.title = element_blank()) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  xlab("Cumulative Group Probabilities (Right Relative to Left)") + ylab("Probability of Self-Endorsement")
+Cum.Cond
+```
+
+### Average Feedback, Averaged Similarity, and Desirability
+
+```{r}
+m <- glmer( as.factor(choice) ~ scale(runAveRLDiff) + scale(SimRminL) + scale(rightDesAP) + ( scale(runAveRLDiff) + scale(SimRminL) + scale(rightDesAP) | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+summary(m)
+tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
+r2beta(m,data=fullTD3)
+```
+
+#### Between Conditions
+
+```{r}
+m <- glmer( as.factor(choice) ~ scale(runAveRLDiff)*condition + scale(SimRminL) + scale(rightDesAP) + ( scale(runSumRLDiff) + scale(SimRminL) + scale(rightDesAP) | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+summary(m)
+tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
+r2beta(m,data=fullTD3)
+ggpredict(m, c("runAveRLDiff","condition")) %>% plot()
+```
+
 
 ## Combined Plot
 
@@ -1116,6 +1273,7 @@ m <- lmer(selfResp ~ scale(valEstF) +
 summary(m)
 tidy(m,conf.int=TRUE,effects="fixed")
 ModelRePlot1 <- ggpredict(m, c("valEstF")) %>% plot(show.title=F) + xlab("Model Prediction") + ylab("Self-Evaluation") + jtools::theme_apa()  
+r2beta(m)
 ```
 
 ### Feedback-Weighted Similarity and Desirability
@@ -1127,6 +1285,7 @@ m <- lmer(scale(selfResp) ~ scale(SV_F) + scale(desirability) +
 summary(m)
 tidy(m,conf.int=TRUE,effects="fixed")
 ggpredict(m, c("SV_F")) %>% plot()
+r2beta(m)
 ```
 
 ### Cumulative Norms, Similarity, and Desirability
@@ -1137,6 +1296,7 @@ m <- lmer( scale(selfResp) ~ scale(sumCueF) + scale(Sim) + scale(desirability) +
                                     optCtrl = list(maxfun = 100000)))
 summary(m)
 tidy(m,conf.int=TRUE,effects="fixed")
+r2beta(m)
 ```
 
 ### Cumulative Norms and Desirability
@@ -1160,6 +1320,7 @@ m <- lmer(scale(selfResp) ~ scale(valEstF) +
 summary(m)
 tidy(m,conf.int=TRUE,effects="fixed")
 ModelRePlot2 <- ggpredict(m, c("valEstF")) %>% plot(show.title=F) + xlab("Model Prediction") + ylab("Self-Evaluation") + jtools::theme_apa() 
+r2beta(m)
 ```
 
 ### Feedback-Weighted Similarity and Desirability
@@ -1171,6 +1332,7 @@ m <- lmer(scale(selfResp) ~ scale(SV_F) + scale(desirability) +
 summary(m)
 tidy(m,conf.int=TRUE,effects="fixed")
 ggpredict(m, c("SV_F")) %>% plot()
+r2beta(m)
 ```
 
 ### Cumulative Norms, Similarity, and Desirability
@@ -1181,16 +1343,7 @@ m <- lmer( scale(selfResp) ~ scale(sumCueF) + scale(Sim) + scale(desirability) +
                                     optCtrl = list(maxfun = 100000)))
 summary(m)
 tidy(m,conf.int=TRUE,effects="fixed")
-```
-
-### Cumulative Norms and Desirability
-
-```{r}
-m <- lmer( scale(selfResp) ~ scale(sumCueF) + scale(desirability) +
-    ( scale(sumCueF)  + scale(desirability) | subID) + (1 | trait), data = reValDf2, control = lmerControl(optimizer = "bobyqa",
-                                    optCtrl = list(maxfun = 100000)))
-summary(m)
-tidy(m,conf.int=TRUE,effects="fixed")
+r2beta(m)
 ```
 
 ## Study 3
@@ -1214,6 +1367,7 @@ m <- lmer( scale(selfResp) ~ scale(valEstF)*condition +
                                     optCtrl = list(maxfun = 100000)))
 summary(m)
 ggpredict(m, c("valEstF")) %>% plot()
+r2beta(m)
 ```
 
 ### Feedback-Weighted Similarity and Desirability
@@ -1225,16 +1379,29 @@ m <- lmer( scale(selfResp) ~ scale(SV_F) + scale(desirability) +
 summary(m)
 tidy(m,conf.int=TRUE,effects="fixed")
 ggpredict(m, c("SV_F")) %>% plot()
+r2beta(m)
+```
+
+### Cumulative Norms, Similarity, and Desirability
+
+```{r}
+m <- lmer( scale(selfResp) ~ scale(sumCueF) + scale(Sim) + scale(desirability) +
+    ( scale(sumCueF) + scale(Sim) + scale(desirability) | subID) + (1 | trait), data = reValDf3, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+r2beta(m)
 ```
 
 #### Between conditions?
 
 ```{r}
-m <- lmer( scale(selfResp) ~ scale(SV_F)*condition + scale(desirability) +
-    ( scale(SV_F) + scale(desirability) | subID) + (1 | trait), data = reValDf3, control = lmerControl(optimizer = "bobyqa",
+m <- lmer( scale(selfResp) ~ scale(sumCueF)*condition + scale(Sim) + scale(desirability) +
+    ( scale(sumCueF) + scale(Sim) + scale(desirability) | subID) + (1 | trait), data = reValDf3, control = lmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)))
 summary(m)
-ggpredict(m, c("SV_F")) %>% plot()
+tidy(m,conf.int=TRUE,effects="fixed")
+r2beta(m)
 ```
 
 ### Cumulative Norms, Similarity, and Desirability
@@ -1314,13 +1481,36 @@ ggpredict(m, c("sumCueF", "unseen" )) %>% plot()
 Steeper slope for unseen traits. Unseen traits with low category representativeness are even less descriptive.
 
 ```{r}
-m <- lmer(scale(selfResp) ~ scale(SV_F)*as.factor(unseen) +
-    ( scale(SV_F) + as.factor(unseen) | subID) + (1 | trait), data = reValDf2, control = lmerControl(optimizer = "bobyqa",
+m <- lmer(scale(selfResp) ~ scale(SV_F)*as.factor(unseen) + scale(desirability) +
+    ( scale(SV_F) + as.factor(unseen) + scale(desirability) | subID) + (1 | trait), data = reValDf2, control = lmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)))
 summary(m)
 tidy(m,conf.int=TRUE,effects="fixed")
 ggpredict(m, c("SV_F", "unseen" )) %>% plot()
+r2beta(m)
 ```
+
+#### Simple Effects
+
+```{r}
+n2 <- subset(reValDf2, unseen==1)
+p2 <- subset(reValDf2, unseen==0)
+
+m <- lmer(scale(selfResp) ~ scale(SV_F) + scale(desirability) +
+    ( scale(SV_F) + scale(desirability) | subID) + (1 | trait), data = n2, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+r2beta(m)
+
+m <- lmer(scale(selfResp) ~ scale(SV_F) + scale(desirability) +
+    ( scale(SV_F) + scale(desirability) | subID) + (1 | trait), data = p2, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+r2beta(m)
+```
+
 
 ## Study 3
 
@@ -1349,18 +1539,66 @@ ggpredict(m, c("sumCueF", "unseen", "condition" )) %>% plot()
 
 ```{r}
 m <- lmer(scale(selfResp) ~ scale(SV_F)*as.factor(unseen) + scale(desirability) +
-    ( scale(SV_F) + as.factor(unseen) | subID) + (1 | trait), data = reValDf3, control = lmerControl(optimizer = "bobyqa",
+    ( scale(SV_F) + as.factor(unseen) + scale(desirability) | subID) + (1 | trait), data = reValDf3, control = lmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)))
 summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
 ggpredict(m, c("SV_F", "unseen" )) %>% plot()
+r2beta(m)
 ```
 
 #### Different between conditions
 
 ```{r}
 m <- lmer(scale(selfResp) ~ scale(SV_F)*as.factor(unseen)*condition + scale(desirability) +
-    ( scale(SV_F) + as.factor(unseen) | subID) + (1 | trait), data = reValDf3, control = lmerControl(optimizer = "bobyqa",
+    ( scale(SV_F) + as.factor(unseen) + scale(desirability) | subID) + (1 | trait), data = reValDf3, control = lmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)))
 summary(m)
 ggpredict(m, c("SV_F", "unseen", "condition")) %>% plot()
 ```
+
+#### Simple Effects
+
+```{r}
+n2 <- subset(reValDf3, unseen==1)
+p2 <- subset(reValDf3, unseen==0)
+
+m <- lmer(scale(selfResp) ~ scale(SV_F) + scale(desirability) +
+    ( scale(SV_F) + scale(desirability) | subID) + (1 | trait), data = n2, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+r2beta(m)
+
+m <- lmer(scale(selfResp) ~ scale(SV_F) + scale(desirability) +
+    ( scale(SV_F) + scale(desirability) | subID) + (1 | trait), data = p2, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+r2beta(m)
+```
+
+# Exploratory Analyses
+
+## Compete-Align Moderated by Self-Esteem
+
+```{r}
+m <- lmer(scale(sumC.AP) ~ scale(SE) * compMotC3 * condition + scale(trialTotal) + ( compMotC3 | subID), data = fullTD3)
+summary(m)
+ggpredict(m, c("SE","compMotC3", "condition")) %>% plot(show.title=F) + xlab("Self-Esteem") + ylab("Likelihood of Group Normativity") + jtools::theme_apa()
+```
+
+```{r}
+m <- lmer(scale(desAP) ~ compMotC3 * condition * IdImp + scale(trialTotal) + ( compMotC3 | subID), data = fullTD3)
+summary(m)
+ggpredict(m, c("SE","compMotC3", "condition")) %>% plot(show.title=F) + xlab("Self-Esteem") + ylab("Likelihood of Group Normativity") + jtools::theme_apa()
+```
+
+## Likelihood of endorsing group normative trait predicted by strength of id, moderated by condition
+
+```{r}
+m <- lmer(scale(sumC.AP) ~ scale(IdImp) * condition + ( 1 | subID), data = fullTD3)
+summary(m)
+ggpredict(m, c("IdImp", "condition")) %>% plot(show.title=F) + xlab("Strength of Identification") + ylab("Likelihood of Group Normativity") + jtools::theme_apa()
+```
+

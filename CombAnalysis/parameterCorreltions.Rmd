@@ -1,0 +1,127 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+library(tidyverse)
+```
+
+
+```{r}
+devtools::source_url("https://raw.githubusercontent.com/JacobElder/MiscellaneousR/master/corToOne.R")
+```
+
+# Study 1
+
+```{r}
+setwd("~/Google Drive/Volumes/Research Project/Competing Motives/Data Analysis/")
+fullTD1 <- read.csv("fullDf.csv")
+indDiff <- read.csv("CompMot_Scored.csv")
+fullTD1 <- merge(fullTD1, indDiff, by = "subID")
+params <- read.csv("./Study 1 Parameters/sim2CM_RBparams.csv")
+```
+
+
+```{r}
+indDiffs <- fullTD1[!duplicated(fullTD1$subID),]
+indDiffs <- indDiffs %>% select(subID, SCC:SGO)
+indDiffs <- indDiffs %>% full_join(params, by = "subID")
+```
+
+## Mixture
+
+```{r}
+indDiffs %>% select(mix, SCC:SGO) %>% corToOne(., "mix")
+indDiffs %>% select(mix, SCC:SGO) %>% plotCorToOne(., "mix")
+```
+
+## Temperature
+
+```{r}
+indDiffs %>% select(Temp, SCC:SGO) %>% corToOne(., "Temp")
+indDiffs %>% select(Temp, SCC:SGO) %>% plotCorToOne(., "Temp")
+```
+
+# Study 2
+
+```{r}
+setwd("~/Google Drive/Volumes/Research Project/Competing Motives/Data Analysis/Study2/output/")
+fullTD2 <- read.csv("fullDf.csv")
+params2 <- read.csv("/Volumes/GoogleDrive/My Drive/Volumes/Research Project/Competing Motives/Data Analysis/Study2/Analysis/Study 2 Params/sim2CM_RBparams.csv")
+```
+
+
+```{r}
+indDiffs <- fullTD2[!duplicated(fullTD2$subID),]
+indDiffs <- indDiffs %>% select(subID, SStatus:SGO)
+indDiffs <- indDiffs %>% full_join(params2, by = "subID")
+```
+
+## Mixture
+
+```{r}
+indDiffs %>% select(mix, SStatus:SGO) %>% corToOne(., "mix")
+indDiffs %>% select(mix, SStatus:SGO) %>% plotCorToOne(., "mix")
+```
+
+## Temperature
+
+```{r}
+indDiffs %>% select(Temp, SStatus:SGO) %>% corToOne(., "Temp")
+indDiffs %>% select(Temp, SStatus:SGO) %>% plotCorToOne(., "Temp")
+```
+
+# Study 3: Democrats
+
+```{r}
+setwd("~/Google Drive/Volumes/Research Project/Competing Motives/Data Analysis/Study3/output/")
+fullTD3 <- read.csv("fullDf.csv")
+params3_D <- read.csv("/Volumes/GoogleDrive/My Drive/Volumes/Research Project/Competing Motives/Data Analysis/Study3/Analysis/Study 3 Params/sim2CM_RBparamsD.csv")
+params3_R <- read.csv("/Volumes/GoogleDrive/My Drive/Volumes/Research Project/Competing Motives/Data Analysis/Study3/Analysis/Study 3 Params/sim2CM_RBparamsR.csv")
+```
+
+
+```{r}
+indDiffs <- fullTD3[!duplicated(fullTD3$subID),]
+indDiffs <- indDiffs %>% select(subID, SStatus:affPol)
+indDiffs <- indDiffs %>% right_join(params3_D, by = "subID")
+```
+
+## Mixture
+
+```{r}
+indDiffs %>% select(mix, SStatus:affPol) %>% corToOne(., "mix")
+indDiffs %>% select(mix, SStatus:affPol) %>% plotCorToOne(., "mix")
+```
+
+## Temperature
+
+```{r}
+indDiffs %>% select(Temp, SStatus:affPol) %>% corToOne(., "Temp")
+indDiffs %>% select(Temp, SStatus:affPol) %>% plotCorToOne(., "Temp")
+```
+# Study 3: Republicans
+
+```{r}
+indDiffs <- fullTD3[!duplicated(fullTD3$subID),]
+indDiffs <- indDiffs %>% select(subID, SStatus:affPol)
+indDiffs <- indDiffs %>% right_join(params3_R, by = "subID")
+```
+
+## Mixture
+
+```{r}
+indDiffs %>% select(mix, SStatus:affPol) %>% corToOne(., "mix")
+indDiffs %>% select(mix, SStatus:affPol) %>% plotCorToOne(., "mix")
+```
+
+## Temperature
+
+```{r}
+indDiffs %>% select(Temp, SStatus:affPol) %>% corToOne(., "Temp")
+indDiffs %>% select(Temp, SStatus:affPol) %>% plotCorToOne(., "Temp")
+```
+

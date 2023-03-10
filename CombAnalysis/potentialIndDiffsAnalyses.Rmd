@@ -1,0 +1,263 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r,include=FALSE}
+library(compiler)
+library(readbulk) 
+library(psych)
+library(forcats)
+library(igraph)
+library(MASS)
+library(lme4)
+library(lmerTest)
+library(cluster)
+library(Kendall)
+library(readr)
+library(psych)
+library(igraph)
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library(reshape2)
+library(tidyr)
+library(gtools)
+library(sjstats)
+library(brms)
+library(optimx)
+library(ggeffects)
+library(sjPlot)
+library(corrr)
+library(r2glmm)
+library(ggpubr)
+library(grid)
+library(broom.mixed)
+library(tidyverse)
+library(wesanderson)
+logit2prob <- function(logit){
+  odds <- exp(logit)
+  prob <- odds / (1 + odds)
+  return(prob)
+}
+```
+
+```{r}
+plotDir <- "/Volumes/GoogleDrive/My Drive/Volumes/Research Project/Competing Motives/Plots/"
+```
+
+
+```{r, include=FALSE}
+setwd("~/Google Drive/Volumes/Research Project/Competing Motives/Data Analysis/")
+fullTD1 <- read.csv("fullDf.csv")
+reValDf1 <- read.csv("reEvalDfnew.csv")
+params <- read.csv("./Study 1 Parameters/sim2CM_RBparams.csv")
+indDiff <- read.csv("CompMot_Scored.csv")
+reValDf1$valence <- as.factor(reValDf1$valence)
+levels(reValDf1$valence) <- c("Neg", "Pos")
+reValDf1$propT <- as.factor(reValDf1$propT)
+levels(reValDf1$propT) <- c("Low","Med","High")
+fullTD1$compMotC <- as.factor(fullTD1$compMotC)
+levels(fullTD1$compMotC) <- c("Aligned", "Compete")
+fullTD1$compMotC2 <- as.factor(fullTD1$compMotC2)
+levels(fullTD1$compMotC2) <- c("Aligned", "Compete")
+fullTD1$compMotC3 <- as.factor(fullTD1$compMotC3)
+levels(fullTD1$compMotC3) <- c("Aligned", "Compete")
+fullTD1$pair <- as.factor(fullTD1$pair)
+levels(fullTD1$pair) <- c("NN", "PN", "PP")
+fullTD1$chooseGroup <- fullTD1$chooseGroup + 1
+fullTD1$choice <- as.factor(fullTD1$choice-1)
+fullTD1$incong <- as.factor(ifelse(fullTD1$pairCong == 2, "cong", "incong"))
+fullTD1$SimRminL <- fullTD1$simR - fullTD1$simL
+
+fullTD1 <- merge(fullTD1, indDiff, by = "subID")
+reValDf1 <- merge(reValDf1, indDiff, by = "subID")
+
+reValDf1$unseen <- 0
+
+fullTD1$condition <- "Latino"
+reValDf1$condition <- "Latino"
+fullTD1$study <- "S1"
+
+reValDf1$propT <- as.factor(reValDf1$propT)
+contrasts(reValDf1$propT) = contr.poly(levels(reValDf1$propT))
+
+fullTD1$runSumRLDiff <- fullTD1$runSumR - fullTD1$runSumL
+
+fullTD1$trialTotal.Z <- scale(fullTD1$trialTotal)
+fullTD1$runSumRLDiff.Z <- scale(fullTD1$runSumRLDiff)
+```
+
+```{r,include=FALSE}
+setwd("~/Google Drive/Volumes/Research Project/Competing Motives/Data Analysis/Study2/output/")
+fullTD2 <- read.csv("fullDf.csv")
+reValDf2 <- read.csv("reEvalDf.csv")
+params2 <- read.csv("/Volumes/GoogleDrive/My Drive/Volumes/Research Project/Competing Motives/Data Analysis/Study2/Analysis/Study 2 Params/sim2CM_RBparams.csv")
+reValDf2$valence <- as.factor(reValDf2$valence)
+levels(reValDf2$valence) <- c("Neg", "Pos")
+reValDf2$propT <- as.factor(reValDf2$propT)
+levels(reValDf2$propT) <- c("Low","Med","High")
+fullTD2$compMotC <- as.factor(fullTD2$compMotC)
+levels(fullTD2$compMotC) <- c("Aligned", "Compete")
+fullTD2$compMotC2 <- as.factor(fullTD2$compMotC2)
+levels(fullTD2$compMotC2) <- c("Aligned", "Compete")
+fullTD2$compMotC3 <- as.factor(fullTD2$compMotC3)
+levels(fullTD2$compMotC3) <- c("Aligned", "Compete")
+fullTD2$pair <- as.factor(fullTD2$pair)
+levels(fullTD2$pair) <- c("NN", "PN", "PP")
+fullTD2$pairCong <- as.factor(fullTD2$pairCong)
+levels(fullTD2$pairCong) <- c("NN", "PN", "PP")
+fullTD2$pairCong <- relevel(fullTD2$pairCong, "PN")
+fullTD2$chooseGroup <- as.factor(fullTD2$chooseGroup)
+fullTD2$chooseAP <- as.factor(ifelse(fullTD2$AP > .5, 1, 0))
+fullTD2$incong <- as.factor(ifelse(fullTD2$pairCong == "PN", "cong", "incong"))
+fullTD2$SimRminL <- fullTD2$simR - fullTD2$simL
+
+fullTD2$condition <- "Asian"
+reValDf2$condition <- "Asian"
+fullTD2$study <- "S2"
+
+reValDf2$propT <- as.factor(reValDf2$propT)
+levels(reValDf2$propT) <- c("Low","Med","High")
+contrasts(reValDf2$propT) = contr.poly(levels(reValDf2$propT))
+
+fullTD2$runSumRLDiff <- fullTD2$runSumR - fullTD2$runSumL
+
+fullTD2$runSumRLDiff <- scale(fullTD2$runSumRLDiff)
+fullTD2$trialTotal.Z <- scale(fullTD2$trialTotal)
+```
+
+```{r,include=FALSE}
+setwd("~/Google Drive/Volumes/Research Project/Competing Motives/Data Analysis/Study3/output/")
+fullTD3 <- read.csv("fullDf.csv")
+reValDf3 <- read.csv("reEvalDf.csv")
+params3_D <- read.csv("/Volumes/GoogleDrive/My Drive/Volumes/Research Project/Competing Motives/Data Analysis/Study3/Analysis/Study 3 Params/sim2CM_RBparamsD.csv")
+params3_R <- read.csv("/Volumes/GoogleDrive/My Drive/Volumes/Research Project/Competing Motives/Data Analysis/Study3/Analysis/Study 3 Params/sim2CM_RBparamsR.csv")
+reValDf3$propT <- as.factor(reValDf3$propT)
+levels(reValDf3$propT) <- c("Low","Med","High")
+reValDf3$valence <- as.factor(reValDf3$valence)
+levels(reValDf3$valence) <- c("Neg", "Pos")
+fullTD3$compMotC <- as.factor(fullTD3$compMotC)
+levels(fullTD3$compMotC) <- c("Aligned", "Compete")
+fullTD3$compMotC2 <- as.factor(fullTD3$compMotC2)
+levels(fullTD3$compMotC2) <- c("Aligned", "Compete")
+fullTD3$compMotC3 <- as.factor(fullTD3$compMotC3)
+levels(fullTD3$compMotC3) <- c("Aligned", "Compete")
+fullTD3$pair <- as.factor(fullTD3$pair)
+levels(fullTD3$pair) <- c("NN", "PN", "PP")
+fullTD3$pairCong <- as.factor(fullTD3$pairCong)
+levels(fullTD3$pairCong) <- c("NN", "PN", "PP")
+fullTD3$pairCong <- relevel(fullTD3$pairCong, "PN")
+fullTD3$chooseGroup <- as.factor(fullTD3$chooseGroup)
+fullTD3$incong <- as.factor(ifelse(fullTD3$pair == "PN", "cong", "incong"))
+fullTD3$SimRminL <- fullTD3$simR - fullTD3$simL
+
+fullTD3$study <- "S3"
+
+reValDf3$propT <- as.factor(reValDf3$propT)
+levels(reValDf3$propT) <- c("Low","Med","High")
+contrasts(reValDf3$propT) = contr.poly(levels(reValDf3$propT))
+
+fullTD3$runSumRLDiff <- fullTD3$runSumR - fullTD3$runSumL
+
+fullTD3$runSumRLDiff.Z <- scale(fullTD3$runSumRLDiff)
+fullTD3$trialTotal.Z <- scale(fullTD3$trialTotal)
+```
+
+```{r,include=FALSE}
+named.contr.sum<-function(x, ...) {
+    if (is.factor(x)) {
+        x <- levels(x)
+    } else if (is.numeric(x) & length(x)==1L) {
+        stop("cannot create names with integer value. Pass factor levels")
+    }
+    x<-contr.sum(x, ...)
+    colnames(x) <- apply(x,2,function(x) 
+         paste(names(x[x>0]))
+    )
+    x
+}
+```
+
+
+# Lower Self-Esteem Individuals Self-Derogate for Group Less and Self-Derogation Effect Weaker for Republican Outgroup
+
+```{r}
+m <- glmer( as.factor(chooseDes) ~ compMotC3*SE + cong + scale(trialTotal) + ( compMotC3 + scale(trialTotal) | subID), data = fullTD1, family=binomial)
+summary(m)
+ggpredict(m, c("SE","compMotC3")) %>% plot()
+
+m <- glmer( as.factor(chooseDes) ~ compMotC3*SE + cong + scale(trialTotal) + ( compMotC3 + scale(trialTotal) | subID), data = fullTD2, family=binomial)
+summary(m)
+ggpredict(m, c("SE","compMotC3")) %>% plot()
+
+m <- glmer( as.factor(chooseDes) ~ compMotC3*SE*condition + cong + scale(trialTotal) + ( compMotC3 + scale(trialTotal) | subID), data = fullTD3, family=binomial)
+summary(m)
+ggpredict(m, c("SE","compMotC3","condition")) %>% plot()
+```
+
+# Effect of Similarity-to-Group Stronger for Lower Self-Esteem Individuals
+
+```{r}
+m <- glmer( as.factor(choice) ~ scale(RSV)*SE + scale(desRminL)*SE + cong + scale(trialTotal) + ( scale(RSV) + scale(desRminL) | subID), data = fullTD1, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+summary(m)
+r2beta(m,data=fullTD1)
+ggpredict(m, c("RSV","SE")) %>% plot()
+ggpredict(m, c("desRminL","SE")) %>% plot()
+
+m <- glmer( as.factor(choice) ~ scale(RSV)*SE + scale(desRminL)*SE + cong + scale(trialTotal) + ( scale(RSV) + scale(desRminL) | subID), data = fullTD2, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+summary(m)
+r2beta(m,data=fullTD2)
+ggpredict(m, c("RSV","SE")) %>% plot()
+ggpredict(m, c("desRminL","SE")) %>% plot()
+
+
+m <- glmer( as.factor(choice) ~ scale(RSV)*SE*condition + scale(desRminL)*SE*condition + cong + scale(trialTotal) + ( scale(RSV) + scale(desRminL) | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+summary(m)
+ggpredict(m, c("RSV","SE","condition")) %>% plot()
+ggpredict(m, c("desRminL","SE","condition")) %>% plot()
+```
+# Effect of Social Identification on Similarity-to-Group and Desirability
+
+```{r}
+m <- glmer( as.factor(choice) ~ scale(RSV)*IdImp + scale(desRminL)*IdImp + cong + scale(trialTotal) + ( scale(RSV) + scale(desRminL) | subID), data = fullTD1, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+summary(m)
+r2beta(m,data=fullTD1)
+ggpredict(m, c("RSV","IdImp")) %>% plot()
+ggpredict(m, c("desRminL","IdImp")) %>% plot()
+
+m <- glmer( as.factor(choice) ~ scale(RSV)*IdImp + scale(desRminL)*IdImp + cong + scale(trialTotal) + ( scale(RSV) + scale(desRminL) | subID), data = fullTD2, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+summary(m)
+r2beta(m,data=fullTD2)
+ggpredict(m, c("RSV","IdImp")) %>% plot()
+ggpredict(m, c("desRminL","IdImp")) %>% plot()
+
+
+m <- glmer( as.factor(choice) ~ scale(RSV)*IdImp*condition + scale(desRminL)*IdImp*condition + cong + scale(trialTotal) + ( scale(RSV) + scale(desRminL) | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+summary(m)
+ggpredict(m, c("RSV","IdImp","condition")) %>% plot()
+ggpredict(m, c("desRminL","IdImp","condition")) %>% plot()
+```
+
+# More strongly identified Democrats self-derogate more for ingroup norms whereas less strongly identified Democrats self-derogate more for outgroup norms
+
+```{r}
+m <- glmer( as.factor(chooseDes) ~ compMotC3*IdImp*condition + cong + scale(trialTotal) + ( compMotC3 + scale(trialTotal) | subID), data = fullTD3, family=binomial)
+summary(m)
+ggpredict(m, c("IdImp","compMotC3","condition")) %>% plot()
+```
+

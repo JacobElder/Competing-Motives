@@ -446,6 +446,15 @@ psych::describe(params3_R$mix)
 psych::describe(params3_R$rb-1)
 ```
 
+### Group Differences
+
+```{r}
+set.seed(52)
+MKinfer::perm.t.test(params3_D$mix, params3_R$mix)
+MKinfer::perm.t.test(params3_D$Temp, params3_R$Temp)
+```
+
+
 ### Republicans
 
 # Question 1: Does the tendency to choose the most desirable trait change across trials?
@@ -1684,6 +1693,119 @@ ggpredict(m, c("RSV","SE","condition")) %>% plot()
 ggpredict(m, c("desRminL","SE","condition")) %>% plot()
 ```
 
+### Plot
+
+```{r}
+SVD.SE1 <- glmer( as.factor(choice) ~ RSV*SE + desRminL*SE + cong + trialTotal + ( RSV + desRminL | subID), data = fullTD1, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+
+
+
+SVD.SE2 <- glmer( as.factor(choice) ~ RSV*SE + desRminL*SE + cong + trialTotal + ( scale(RSV) + scale(desRminL) | subID), data = fullTD2, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+
+
+SVD.SE3 <- glmer( as.factor(choice) ~ RSV*SE*condition + desRminL*SE*condition + cong + trialTotal + ( RSV + desRminL | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+
+repDf3 <- subset(fullTD3, condition=="Republican")
+demDf3 <- subset(fullTD3, condition=="Democrat")
+
+SVD.SE3r <- glmer( as.factor(choice) ~ RSV*SE + desRminL*SE + cong + trialTotal + ( RSV + desRminL | subID), data = repDf3, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+
+SVD.SE3d <- glmer( as.factor(choice) ~ RSV*SE + desRminL*SE + cong + trialTotal + ( RSV + desRminL | subID), data = demDf3, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+```
+
+theme(plot.title = element_text(hjust = 0.5))
+
++
+  ggtitle("Average bill for 2 people") +
+  ggeasy::easy_center_title()
+
+```{r}
+p <- ggpredict(SVD.SE1, c("RSV","SE"))
+SVD.SE1.Plot <-ggplot(p, aes(x, predicted)) +  geom_line(aes(linetype=group, color=group)) + geom_ribbon(aes(ymin=conf.low, ymax=conf.high, fill=group), alpha=0.15) + scale_linetype_discrete(labels = c("Low Self-Esteem","Moderate Self-Esteem","High Self-Esteem")) + scale_color_manual(labels = c("Low Self-Esteem","Moderate Self-Esteem","High Self-Esteem"), values = wes_palette("FantasticFox1") ) + scale_fill_manual( 
+                      labels=c("Low Self-Esteem","Moderate Self-Esteem","High Self-Esteem"), values = wes_palette("FantasticFox1") ) + theme(
+    legend.position = c(.65, .1),
+    legend.justification = c("left", "bottom"),
+    legend.box.just = "left",
+    legend.margin = margin(6, 6, 6, 6)
+    ) + theme(axis.text=element_text(size=12),
+        axis.title=element_text(size=12,face="bold")) + theme(legend.text = element_text(size=12)) + theme(panel.border = element_rect(colour = "black", fill = NA, size =1)) + theme(legend.title = element_blank()) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  xlab("Similarity-to-Self (Right Relative to Left)") + ylab("Choice Probability") +
+  ggtitle("Latino (Study 1)") +
+  ggeasy::easy_center_title() +
+  theme(plot.title = element_text(size=12))
+
+SVD.SE1.Plot
+
+p <- ggpredict(SVD.SE2, c("RSV","SE"))
+SVD.SE2.Plot <-ggplot(p, aes(x, predicted)) +  geom_line(aes(linetype=group, color=group)) + geom_ribbon(aes(ymin=conf.low, ymax=conf.high, fill=group), alpha=0.15) + scale_linetype_discrete(labels = c("Low Self-Esteem","Moderate Self-Esteem","High Self-Esteem")) + scale_color_manual(labels = c("Low Self-Esteem","Moderate Self-Esteem","High Self-Esteem"), values = wes_palette("FantasticFox1") ) + scale_fill_manual( 
+                      labels=c("Low Self-Esteem","Moderate Self-Esteem","High Self-Esteem"), values = wes_palette("FantasticFox1") ) + theme(
+    legend.position = c(.65, .1),
+    legend.justification = c("left", "bottom"),
+    legend.box.just = "left",
+    legend.margin = margin(6, 6, 6, 6)
+    ) + theme(axis.text=element_text(size=12),
+        axis.title=element_text(size=12,face="bold")) + theme(legend.text = element_text(size=12)) + theme(panel.border = element_rect(colour = "black", fill = NA, size =1)) + theme(legend.title = element_blank()) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  xlab("Similarity-to-Self (Right Relative to Left)") + ylab("Choice Probability") +
+  ggtitle("Asian (Study 2)") +
+  ggeasy::easy_center_title() +
+  theme(plot.title = element_text(size=12))
+SVD.SE2.Plot
+
+p <- ggpredict(SVD.SE3d, c("RSV","SE"))
+SVD.SE3d.Plot <-ggplot(p, aes(x, predicted)) +  geom_line(aes(linetype=group, color=group)) + geom_ribbon(aes(ymin=conf.low, ymax=conf.high, fill=group), alpha=0.15) + scale_linetype_discrete(labels = c("Low Self-Esteem","Moderate Self-Esteem","High Self-Esteem")) + scale_color_manual(labels = c("Low Self-Esteem","Moderate Self-Esteem","High Self-Esteem"), values = wes_palette("FantasticFox1") ) + scale_fill_manual( 
+                      labels=c("Low Self-Esteem","Moderate Self-Esteem","High Self-Esteem"), values = wes_palette("FantasticFox1") ) + theme(
+    legend.position = c(.65, .1),
+    legend.justification = c("left", "bottom"),
+    legend.box.just = "left",
+    legend.margin = margin(6, 6, 6, 6)
+    ) + theme(axis.text=element_text(size=12),
+        axis.title=element_text(size=12,face="bold")) + theme(legend.text = element_text(size=12)) + theme(panel.border = element_rect(colour = "black", fill = NA, size =1)) + theme(legend.title = element_blank()) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  xlab("Similarity-to-Self (Right Relative to Left)") + ylab("Choice Probability") +
+  ggtitle("Democrat (Study 3)") +
+  ggeasy::easy_center_title() +
+  theme(plot.title = element_text(size=12))
+SVD.SE3d.Plot
+
+p <- ggpredict(SVD.SE3r, c("RSV","SE"))
+SVD.SE3r.Plot <-ggplot(p, aes(x, predicted)) +  geom_line(aes(linetype=group, color=group)) + geom_ribbon(aes(ymin=conf.low, ymax=conf.high, fill=group), alpha=0.15) + scale_linetype_discrete(labels = c("Low Self-Esteem","Moderate Self-Esteem","High Self-Esteem")) + scale_color_manual(labels = c("Low Self-Esteem","Moderate Self-Esteem","High Self-Esteem"), values = wes_palette("FantasticFox1") ) + scale_fill_manual( 
+                      labels=c("Low Self-Esteem","Moderate Self-Esteem","High Self-Esteem"), values = wes_palette("FantasticFox1") ) + theme(
+    legend.position = c(.65, .1),
+    legend.justification = c("left", "bottom"),
+    legend.box.just = "left",
+    legend.margin = margin(6, 6, 6, 6)
+    ) + theme(axis.text=element_text(size=12),
+        axis.title=element_text(size=12,face="bold")) + theme(legend.text = element_text(size=12)) + theme(panel.border = element_rect(colour = "black", fill = NA, size =1)) + theme(legend.title = element_blank()) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  xlab("Similarity-to-Self (Right Relative to Left)") + ylab("Choice Probability")  +
+  ggtitle("Republican (Study 3)") +
+  ggeasy::easy_center_title() +
+  theme(plot.title = element_text(size=12))
+SVD.SE3r.Plot
+
+arranged <- ggarrange(SVD.SE1.Plot + rremove("ylab") + rremove("xlab"), SVD.SE2.Plot + rremove("ylab") + rremove("xlab"), SVD.SE3d.Plot + rremove("ylab") + rremove("xlab"), SVD.SE3r.Plot + rremove("ylab") + rremove("xlab"), ncol =2, nrow = 2, hjust=.42, common.legend = T)
+addedAxes <- annotate_figure(arranged, left = textGrob("Probability of Desirable Choice", rot = 90, vjust = 1, hjust = .4, gp = gpar(cex = 1.3, fontsize=8, fontface=2)),
+                               bottom = textGrob("Similarity-to-Group (Right Relative to Left)", vjust = -.25, gp = gpar(cex = 1.3, fontsize=8, fontface=2))
+  )
+
+ggsave(paste0(plotDir, "RSV123_SE.tiff"), addedAxes, width = 8, height=5, dpi=600)
+ggsave(paste0(plotDir, "RSV123_SE.png"), addedAxes, width = 8, height=5, dpi=600)
+```
+
+
+
 ## Effect of Social Identification on Similarity-to-Group and Desirability
 
 ```{r}
@@ -1715,18 +1837,84 @@ ggpredict(m, c("desRminL","IdImp","condition")) %>% plot()
 ## Lower Self-Esteem Individuals Self-Derogate for Group Less and Self-Derogation Effect Weaker for Republican Outgroup
 
 ```{r}
-m <- glmer( as.factor(chooseDes) ~ compMotC3*SE + cong + scale(trialTotal) + ( compMotC3 + scale(trialTotal) | subID), data = fullTD1, family=binomial)
-summary(m)
-ggpredict(m, c("SE","compMotC3")) %>% plot()
+CM.SE1 <- glmer( as.factor(chooseDes) ~ compMotC3*SE + cong + scale(trialTotal) + ( compMotC3 + scale(trialTotal) | subID), data = fullTD1, family=binomial)
+summary(CM.SE1)
 
-m <- glmer( as.factor(chooseDes) ~ compMotC3*SE + cong + scale(trialTotal) + ( compMotC3 + scale(trialTotal) | subID), data = fullTD2, family=binomial)
-summary(m)
-ggpredict(m, c("SE","compMotC3")) %>% plot()
+CM.SE2 <- glmer( as.factor(chooseDes) ~ compMotC3*SE + cong + scale(trialTotal) + ( compMotC3 + scale(trialTotal) | subID), data = fullTD2, family=binomial)
+summary(CM.SE2)
 
-m <- glmer( as.factor(chooseDes) ~ compMotC3*SE*condition + cong + scale(trialTotal) + ( compMotC3 + scale(trialTotal) | subID), data = fullTD3, family=binomial)
-summary(m)
-ggpredict(m, c("SE","compMotC3","condition")) %>% plot()
+CM.SE3 <- glmer( as.factor(chooseDes) ~ compMotC3*SE*condition + cong + scale(trialTotal) + ( compMotC3 + scale(trialTotal) | subID), data = fullTD3, family=binomial)
+summary(CM.SE3)
 ```
+
+### Plot
+
+```{r}
+CM.SE1.m.plot <- glmer( as.factor(chooseDes) ~ compMotC3*SE + cong + trialTotal + ( compMotC3 + scale(trialTotal) | subID), data = fullTD1, family=binomial)
+
+CM.SE2.m.plot <- glmer( as.factor(chooseDes) ~ compMotC3*SE + cong + trialTotal + ( compMotC3 + scale(trialTotal) | subID), data = fullTD2, family=binomial)
+
+CM.SE3.m.plot <- glmer( as.factor(chooseDes) ~ compMotC3*SE*condition + cong + trialTotal + ( compMotC3 + scale(trialTotal) | subID), data = fullTD3, family=binomial)
+```
+
+
+```{r}
+p <- ggpredict(CM.SE1.m.plot, c("SE","compMotC3"))
+CM.SE1.Plot <-ggplot(p, aes(x, predicted)) +  geom_line(aes(linetype=group, color=group)) + geom_ribbon(aes(ymin=conf.low, ymax=conf.high, fill=group), alpha=0.15) + scale_linetype_discrete(labels = c("Aligned","Compete")) + scale_color_manual(labels = c("Aligned","Compete"), values = wes_palette("Cavalcanti1") ) + scale_fill_manual( 
+                      labels=c("Aligned","Compete"), values = wes_palette("Cavalcanti1") ) + theme(
+    legend.position = c(.65, .1),
+    legend.justification = c("left", "bottom"),
+    legend.box.just = "left",
+    legend.margin = margin(6, 6, 6, 6)
+    ) + theme(axis.text=element_text(size=12),
+        axis.title=element_text(size=12,face="bold")) + theme(legend.text = element_text(size=12)) + theme(panel.border = element_rect(colour = "black", fill = NA, size =1)) + theme(legend.title = element_blank()) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  xlab("Self-Esteem") + ylab("Probability of Desirable Choice")  +
+  ggtitle("Latino (Study 1)") +
+  ggeasy::easy_center_title() +
+  theme(plot.title = element_text(size=12))
+CM.SE1.Plot
+
+p <- ggpredict(CM.SE2.m.plot, c("SE","compMotC3"))
+CM.SE2.Plot <-ggplot(p, aes(x, predicted)) +  geom_line(aes(linetype=group, color=group)) + geom_ribbon(aes(ymin=conf.low, ymax=conf.high, fill=group), alpha=0.15) + scale_linetype_discrete(labels = c("Aligned","Compete")) + scale_color_manual(labels = c("Aligned","Compete"), values = wes_palette("Cavalcanti1") ) + scale_fill_manual( 
+                      labels=c("Aligned","Compete"), values = wes_palette("Cavalcanti1") ) + theme(
+    legend.position = c(.65, .1),
+    legend.justification = c("left", "bottom"),
+    legend.box.just = "left",
+    legend.margin = margin(6, 6, 6, 6)
+    ) + theme(axis.text=element_text(size=12),
+        axis.title=element_text(size=12,face="bold")) + theme(legend.text = element_text(size=12)) + theme(panel.border = element_rect(colour = "black", fill = NA, size =1)) + theme(legend.title = element_blank()) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  xlab("Self-Esteem") + ylab("Probability of Desirable Choice")  +
+  ggtitle("Asian (Study 2)") +
+  ggeasy::easy_center_title() +
+  theme(plot.title = element_text(size=12))
+
+p <- ggpredict(CM.SE3.m.plot, c("SE","compMotC3","condition"))
+CM.SE3.Plot <-ggplot(p, aes(x, predicted)) + geom_line(aes(linetype=group, color=group)) + geom_ribbon(aes(ymin=conf.low, ymax=conf.high, fill=group), alpha=0.15) + scale_linetype_discrete(labels = c("Aligned","Compete")) + scale_color_manual(labels = c("Aligned","Compete"), values = wes_palette("Cavalcanti1") ) + scale_fill_manual( 
+                      labels=c("Aligned","Compete"), values = wes_palette("Cavalcanti1") ) + theme(
+    legend.position = c(.65, .1),
+    legend.justification = c("left", "bottom"),
+    legend.box.just = "left",
+    legend.margin = margin(6, 6, 6, 6)
+    ) + theme(axis.text=element_text(size=12),
+        axis.title=element_text(size=12,face="bold")) + theme(legend.text = element_text(size=12)) + theme(panel.border = element_rect(colour = "black", fill = NA, size =1)) + theme(legend.title = element_blank()) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  xlab("Self-Esteem") + ylab("Probability of Desirable Choice") + facet_wrap(~facet)
+```
+
+### Combined
+
+```{r}
+arranged <- ggarrange(CM.SE1.Plot + rremove("ylab") + rremove("xlab"), CM.SE2.Plot + rremove("ylab") + rremove("xlab"), ncol =2, nrow = 1, hjust=.42, common.legend = T)
+addedAxes <- annotate_figure(arranged, left = textGrob("Probability of Desirable Choice", rot = 90, vjust = 1, hjust = .4, gp = gpar(cex = 1.3, fontsize=8, fontface=2)),
+                               bottom = textGrob("Self-Esteem", vjust = -.25, gp = gpar(cex = 1.3, fontsize=8, fontface=2))
+  )
+
+ggsave(paste0(plotDir, "compMot12_SE.tiff"), addedAxes, width = 6.5, height=3, dpi=600)
+ggsave(paste0(plotDir, "compMot12_SE.png"), addedAxes, width = 6.5, height=3, dpi=600)
+```
+
 
 ## Social Identification Moderates Self-Derogation for Ingroup but Not Outgroup
 
@@ -1745,6 +1933,33 @@ m <- glmer( as.factor(chooseDes) ~ compMotC3*IdImp*condition + cong + scale(tria
 summary(m)
 ggpredict(m, c("IdImp","compMotC3","condition")) %>% plot()
 ```
+
+## Plot
+
+```{r}
+CM.Id3 <- glmer( as.factor(chooseDes) ~ compMotC3*IdImp*condition + cong + trialTotal + ( compMotC3 + trialTotal | subID), data = fullTD3, family=binomial)
+CM.Id3 <- glmer( as.factor(chooseDes) ~ compMotC3*SE*condition + cong + trialTotal + ( compMotC3 + scale(trialTotal) | subID), data = fullTD3, family=binomial)
+p <- ggpredict(CM.Id3, c("IdImp","compMotC3","condition"))
+CM.Id3.Plot <-ggplot(p, aes(x, predicted)) + geom_line(aes(linetype=group, color=group)) + geom_ribbon(aes(ymin=conf.low, ymax=conf.high, fill=group), alpha=0.15) + scale_linetype_discrete(labels = c("Aligned","Compete")) + scale_color_manual(labels = c("Aligned","Compete"), values = wes_palette("Cavalcanti1") ) + scale_fill_manual( 
+                      labels=c("Aligned","Compete"), values = wes_palette("Cavalcanti1") ) + theme(
+    legend.position = c(.65, .1),
+    legend.justification = c("left", "bottom"),
+    legend.box.just = "left",
+    legend.margin = margin(6, 6, 6, 6)
+    ) + theme(axis.text=element_text(size=12),
+        axis.title=element_text(size=12,face="bold")) + theme(legend.text = element_text(size=12)) + theme(panel.border = element_rect(colour = "black", fill = NA, size =1)) + theme(legend.title = element_blank()) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  xlab("Social Identification") + ylab("Probability of Desirable Choice") + facet_wrap(~facet)
+
+arranged <- ggarrange(CM.SE3.Plot + rremove("ylab"), CM.Id3.Plot + rremove("ylab"), ncol =1, nrow = 2, hjust=.42, common.legend = T)
+
+addedAxes <- annotate_figure(arranged, left = textGrob("Probability of Desirable Choice", rot = 90, vjust = 1, hjust = .525, gp = gpar(cex = 1.3, fontsize=8, fontface=2))
+)
+
+ggsave(paste0(plotDir, "compMot3_SEId.tiff"), addedAxes, width = 6.5, height=5, dpi=600)
+ggsave(paste0(plotDir, "compMot3_SEId.png"), addedAxes, width = 6.5, height=5, dpi=600)
+```
+
 
 ## Compete-Align Moderated by Self-Esteem
 

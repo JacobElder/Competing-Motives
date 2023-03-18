@@ -499,7 +499,7 @@ m <- glmer( as.factor(choice) ~ scale(rAP) + ( scale(rAP) | subID), data = fullT
     nAGQ = 1)
 summary(m)
 tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
-r2beta(m,data=fullTD2)
+data.frame(r2beta(m,data=fullTD2))
 ```
 
 Des and sim-to-group
@@ -510,7 +510,7 @@ m <- glmer( as.factor(choice) ~ scale(RSV) + scale(desRminL) + ( scale(RSV) + sc
     nAGQ = 1)
 summary(m)
 tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
-r2beta(m,data=fullTD2)
+data.frame(r2beta(m,data=fullTD2))
 ```
 Self-esteem moderating
 
@@ -549,17 +549,6 @@ sum prob, sim, des
 
 ```{r}
 m <- glmer( as.factor(choice) ~ scale(runSumRLDiff) + scale(SimRminL) + scale(desRminL) + ( scale(runSumRLDiff) + scale(SimRminL) + scale(desRminL) | subID), data = fullTD2, family = binomial, control = glmerControl(optimizer = "bobyqa",
-                                    optCtrl = list(maxfun = 100000)),
-    nAGQ = 1)
-summary(m)
-tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
-data.frame(r2beta(m,data=fullTD2))
-```
-
-sum prob, sim, des, moderated by pair type
-
-```{r}
-m <- glmer( as.factor(choice) ~ scale(runSumRLDiff)*incong + scale(SimRminL) + scale(rightDesAP) + ( scale(runSumRLDiff) + scale(SimRminL) + scale(desRminL) | subID), data = fullTD2, family = binomial, control = glmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)),
     nAGQ = 1)
 summary(m)
@@ -630,4 +619,364 @@ m <- lmer( scale(selfResp) ~ scale(sumCueF) + scale(Sim) + scale(desirability) +
 summary(m)
 tidy(m,conf.int=TRUE,effects="fixed")
 r2beta(m)
+```
+
+### Generalization to Novel Traits
+
+sim-to-group
+
+```{r}
+m <- lmer(scale(selfResp) ~ scale(SV_F)*as.factor(unseen) + scale(desirability) +
+    ( scale(SV_F) + as.factor(unseen) + scale(desirability) | subID) + (1 | trait), data = reValDf2, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+ggpredict(m, c("SV_F", "unseen" )) %>% plot()
+r2beta(m)
+parameters::equivalence_test(m)
+```
+
+simple effects of similarity-to-group
+
+```{r}
+n2 <- subset(reValDf2, unseen==1)
+p2 <- subset(reValDf2, unseen==0)
+
+m <- lmer(scale(selfResp) ~ scale(SV_F) + scale(desirability) +
+    ( scale(SV_F) + scale(desirability) | subID) + (1 | trait), data = n2, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+r2beta(m)
+
+m <- lmer(scale(selfResp) ~ scale(SV_F) + scale(desirability) +
+    ( scale(SV_F) + scale(desirability) | subID) + (1 | trait), data = p2, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+r2beta(m)
+```
+
+summed probs
+
+```{r}
+m <- lmer(scale(selfResp) ~ scale(sumCueF)*as.factor(unseen) + scale(Sim) + scale(desirability) +
+    ( scale(sumCueF) + scale(Sim) + scale(desirability) + as.factor(unseen) | subID) + (1 | trait), data = reValDf2, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+parameters::equivalence_test(m)
+```
+simple effects of summed probs
+
+```{r}
+m <- lmer(scale(selfResp) ~ scale(sumCueF) + scale(Sim) + scale(desirability) +
+    ( scale(sumCueF) + scale(Sim) + scale(desirability)  | subID) + (1 | trait), data = n2, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+data.frame(r2beta(m))
+
+m <- lmer(scale(selfResp) ~ scale(sumCueF) + scale(Sim) + scale(desirability) +
+    ( scale(sumCueF) + scale(Sim) + scale(desirability) | subID) + (1 | trait), data = p2, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+data.frame(r2beta(m))
+```
+
+# Study 2
+
+## Learning Phase
+
+### Similarity-to-Group Predicts Self-Endorsements During Learning
+
+mixture
+
+```{r}
+m <- glmer( as.factor(choice) ~ scale(rAP) + ( scale(rAP) | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+summary(m)
+tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
+data.frame(r2beta(m,data=fullTD3))
+```
+
+mixture by condition
+
+```{r}
+m <- glmer( as.factor(choice) ~ scale(rAP) * condition + ( scale(rAP) | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+summary(m)
+tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
+data.frame(r2beta(m,data=fullTD3))
+```
+
+
+Des and sim-to-group
+
+```{r}
+m <- glmer( as.factor(choice) ~ scale(RSV) + scale(desRminL) + ( scale(RSV) + scale(desRminL) | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+summary(m)
+tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
+data.frame(r2beta(m,data=fullTD3))
+```
+
+des and sim-to-group by condiition
+
+```{r}
+m <- glmer( as.factor(choice) ~ scale(RSV)*condition + scale(desRminL) + ( scale(RSV) + scale(desRminL) | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+summary(m)
+tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
+data.frame(r2beta(m,data=fullTD3))
+```
+
+Self-esteem moderating
+
+```{r}
+m <- glmer( as.factor(choice) ~ scale(RSV)*scale(SE)*condition + scale(desRminL)*scale(SE)*condition + ( scale(RSV) + scale(desRminL) | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+summary(m)
+tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
+data.frame(r2beta(m,data=fullTD3[complete.cases(fullTD3),]))
+```
+identification moderating
+
+```{r}
+m <- glmer( as.factor(choice) ~ scale(RSV)*scale(IdImp)*condition + scale(desRminL)*scale(IdImp)*condition + ( scale(RSV) + scale(desRminL) | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+summary(m)
+tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
+data.frame(r2beta(m,data=fullTD3[complete.cases(fullTD3),]))
+```
+
+### Cumulative Probabilities Predict Self-Endorsements Over Average Probabilities
+
+ave prob, sim, des
+
+```{r}
+m <- glmer( as.factor(choice) ~ scale(runAveRLDiff) + scale(SimRminL) + scale(desRminL) + ( scale(runAveRLDiff) + scale(SimRminL) + scale(desRminL) | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+summary(m)
+tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
+data.frame(r2beta(m,data=fullTD3))
+```
+
+sum prob, sim, des
+
+```{r}
+m <- glmer( as.factor(choice) ~ scale(runSumRLDiff) + scale(SimRminL) + scale(desRminL) + ( scale(runSumRLDiff) + scale(SimRminL) + scale(desRminL) | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+summary(m)
+tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
+data.frame(r2beta(m,data=fullTD3))
+```
+
+des, sim, sum prob by condition
+
+```{r}
+m <- glmer( as.factor(choice) ~ scale(runSumRLDiff)*condition + scale(SimRminL) + scale(desRminL) + ( scale(runSumRLDiff) + scale(SimRminL) + scale(desRminL) | subID), data = fullTD3, family = binomial, control = glmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)),
+    nAGQ = 1)
+summary(m)
+tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
+data.frame(r2beta(m,data=fullTD3))
+```
+
+### Self-Derogating for the Group
+
+```{r}
+m <- glmer( as.factor(chooseDes) ~ compMotC3 + cong + scale(trialTotal) + ( compMotC3 + scale(trialTotal) | subID), data = fullTD3, family=binomial)
+summary(m)
+tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
+data.frame(r2beta(m,data=fullTD3))
+```
+
+compete by condition
+
+```{r}
+m <- glmer( as.factor(chooseDes) ~ compMotC3*condition + cong + scale(trialTotal) + ( compMotC3 + scale(trialTotal) | subID), data = fullTD3, family=binomial)
+summary(m)
+tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
+data.frame(r2beta(m,data=fullTD3))
+```
+
+moderated by self-esteem
+
+```{r}
+m <- glmer( as.factor(chooseDes) ~ compMotC3*scale(SE)*condition + cong + scale(trialTotal) + ( compMotC3 | subID), data = fullTD3, family=binomial)
+summary(m)
+tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
+data.frame(r2beta(m,data=fullTD3[complete.cases(fullTD3),]))
+```
+
+moderated by identification
+
+```{r}
+m <- glmer( as.factor(chooseDes) ~ compMotC3*scale(IdImp)*condition + cong + scale(trialTotal) + ( compMotC3 | subID), data = fullTD3, family=binomial)
+summary(m)
+tidy(m,conf.int=TRUE,exponentiate=TRUE,effects="fixed")
+data.frame(r2beta(m,data=fullTD3[complete.cases(fullTD3),]))
+```
+
+## Re-Evaluation Phase
+
+### Similarity-to-Group Predicts Re-Evaluations After Learning
+
+mixture
+
+```{r}
+m <- lmer(selfResp ~ scale(valEstF) +
+    ( scale(valEstF) | subID) + (1 | trait), data = reValDf3, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+r2beta(m)
+```
+
+```{r}
+m <- lmer(selfResp ~ scale(valEstF) * condition +
+    ( scale(valEstF) | subID) + (1 | trait), data = reValDf3, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+r2beta(m)
+```
+
+sim-to-group and des
+
+```{r}
+m <- lmer(scale(selfResp) ~ scale(SV_F) + scale(desirability) +
+    ( scale(SV_F) + scale(desirability) | subID) + (1 | trait), data = reValDf3, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+ggpredict(m, c("SV_F")) %>% plot()
+r2beta(m)
+```
+
+des and sim-to-group by condition
+
+```{r}
+m <- lmer(scale(selfResp) ~ scale(SV_F)*condition + scale(desirability) +
+    ( scale(SV_F) + scale(desirability) | subID) + (1 | trait), data = reValDf3, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+r2beta(m)
+```
+
+### Cumulative Probabilities Predict Re-Evaluations
+
+```{r}
+m <- lmer( scale(selfResp) ~ scale(sumCueF) + scale(Sim) + scale(desirability) +
+    ( scale(sumCueF) + scale(Sim) + scale(desirability) | subID) + (1 | trait), data = reValDf3, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+r2beta(m)
+```
+
+cumulative probabilities by condition
+
+```{r}
+m <- lmer( scale(selfResp) ~ scale(sumCueF) * condition + scale(Sim) + scale(desirability) +
+    ( scale(sumCueF) + scale(Sim) + scale(desirability) | subID) + (1 | trait), data = reValDf3, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+r2beta(m)
+```
+
+### Generalization to Novel Traits
+
+sim-to-group
+
+```{r}
+m <- lmer(scale(selfResp) ~ scale(SV_F)*as.factor(unseen) + scale(desirability) +
+    ( scale(SV_F) + as.factor(unseen) + scale(desirability) | subID) + (1 | trait), data = reValDf3, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+ggpredict(m, c("SV_F", "unseen" )) %>% plot()
+r2beta(m)
+parameters::equivalence_test(m)
+```
+
+simple effects of similarity-to-group
+
+```{r}
+n3 <- subset(reValDf3, unseen==1)
+p3 <- subset(reValDf3, unseen==0)
+
+m <- lmer(scale(selfResp) ~ scale(SV_F) + scale(desirability) +
+    ( scale(SV_F) + scale(desirability) | subID) + (1 | trait), data = n3, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+r2beta(m)
+
+m <- lmer(scale(selfResp) ~ scale(SV_F) + scale(desirability) +
+    ( scale(SV_F) + scale(desirability) | subID) + (1 | trait), data = p3, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+r2beta(m)
+```
+
+simple effects of similarity-to-group by condition
+
+```{r}
+
+m <- lmer(scale(selfResp) ~ scale(SV_F)*condition + scale(desirability) +
+    ( scale(SV_F) + scale(desirability) | subID) + (1 | trait), data = n3, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+r2beta(m)
+
+m <- lmer(scale(selfResp) ~ scale(SV_F)*condition + scale(desirability) +
+    ( scale(SV_F) + scale(desirability) | subID) + (1 | trait), data = p3, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+r2beta(m)
+```
+
+summed probs
+
+```{r}
+m <- lmer(scale(selfResp) ~ scale(sumCueF)*as.factor(unseen) + scale(Sim) + scale(desirability) +
+    ( scale(sumCueF) + scale(Sim) + scale(desirability) + as.factor(unseen) | subID) + (1 | trait), data = reValDf3, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+parameters::equivalence_test(m)
+```
+
+simple effects of summed probs
+
+```{r}
+m <- lmer(scale(selfResp) ~ scale(sumCueF) + scale(Sim) + scale(desirability) +
+    ( scale(sumCueF) + scale(Sim) + scale(desirability)  | subID) + (1 | trait), data = n3, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+data.frame(r2beta(m))
+
+m <- lmer(scale(selfResp) ~ scale(sumCueF) + scale(Sim) + scale(desirability) +
+    ( scale(sumCueF) + scale(Sim) + scale(desirability) | subID) + (1 | trait), data = p3, control = lmerControl(optimizer = "bobyqa",
+                                    optCtrl = list(maxfun = 100000)))
+summary(m)
+tidy(m,conf.int=TRUE,effects="fixed")
+data.frame(r2beta(m))
 ```

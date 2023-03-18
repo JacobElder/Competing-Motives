@@ -1499,7 +1499,7 @@ tidy(m,conf.int=TRUE,effects="fixed")
 
 ```{r}
 m <- lmer( scale(selfResp) ~ scale(sumCueF) * condition + scale(Sim) + scale(desirability) +
-    ( scale(SV_F) + scale(Sim) + scale(desirability) | subID) + (1 | trait), data = reValDf3, control = lmerControl(optimizer = "bobyqa",
+    ( scale(sumCueF) + scale(Sim) + scale(desirability) | subID) + (1 | trait), data = reValDf3, control = lmerControl(optimizer = "bobyqa",
                                     optCtrl = list(maxfun = 100000)))
 summary(m)
 tidy(m,conf.int=TRUE,effects="fixed")

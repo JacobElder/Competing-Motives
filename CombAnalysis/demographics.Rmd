@@ -41,6 +41,10 @@ raw3 <- read.csv("/Volumes/GoogleDrive/My Drive/Volumes/Research Project/Competi
 raw1 <- raw1[raw1$subID %in% unique(fullTD1$subID),]
 raw2 <- raw2[raw2$id %in% unique(fullTD2$subID),]
 raw3 <- raw3[raw3$workerId %in% unique(fullTD3$subID),]
+
+raw1 <- raw1[-nrow(raw1),] # Delete duplicate 179 with no "Sex" value
+raw2 <- raw2[!duplicated(raw2$id),] # remove duplicates - N=105
+nrow(raw3[!duplicated(raw3$workerId),]) # remove duplicates - N=208
 ```
 
 ```{r}
